@@ -120,6 +120,10 @@ Markdown Documentation Readable, version control friendly
 
 ---
 
+<p align="center">
+  <img src="assets/2.png" alt="Banner 2" width="100%">
+</p>
+
 📦 Installation
 
 Prerequisites
@@ -729,9 +733,6 @@ Reporting Issues
 
 <div align="center">
 
-<p align="center">
-  <img src="assets/2.png" alt="Banner 2" width="100%">
-</p>
 
 </div>
 
