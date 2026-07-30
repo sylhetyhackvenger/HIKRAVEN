@@ -57,7 +57,7 @@ By using this tool, you agree to:
 
 🔍 Overview
 
-HIKRAVEN is a professional-grade security assessment platform specifically designed for identifying and analyzing vulnerabilities in Hikvision devices. Built for security researchers, penetration testers, and IT security professionals, it provides comprehensive network discovery, vulnerability scanning, and reporting capabilities.
+HIKRAVEN is a professional-grade security assessment platform specifically designed for identifying and analyzing vulnerabilities in Hikvision devices. Built for security researchers, penetration testers, and IT security professionals. It provides comprehensive network discovery, vulnerability scanning, and reporting capabilities.
 
 Key Capabilities
 
