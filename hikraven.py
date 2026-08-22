@@ -48,9 +48,6 @@ try:
     from requests.adapters import HTTPAdapter
     from requests.packages.urllib3.util.retry import Retry
     from requests.packages.urllib3.exceptions import InsecureRequestWarning
-    import scapy.all as scapy
-    from scapy.layers.inet import IP, TCP, UDP, ICMP
-    from scapy.layers.l2 import ARP, Ether
     from cryptography.fernet import Fernet
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -75,7 +72,7 @@ try:
     from rich.status import Status
 except ImportError as e:
     print(f"Missing required module: {e}")
-    print("Install with: pip install requests scapy lxml cryptography colorama pyyaml tqdm packaging rich netifaces psutil")
+    print("Install with: pip install requests lxml cryptography colorama pyyaml tqdm packaging rich netifaces psutil")
     sys.exit(1)
 
 warnings.filterwarnings('ignore', category=InsecureRequestWarning)
@@ -87,6 +84,31 @@ console = Console()
 
 __author__ = "SYLHETYHACKVENGER (THE-ERROR808)"
 __description__ = "Advanced Hikvision Security Assessment Tool - Professional Edition"
+
+BANNER = """
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣄⠴⠔⠂⠀⠀⠀⠀⠀⠐⠂⠦⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⢀⣤⢶⠻⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⢳⣗⣤⡀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⢠⣼⣛⠮⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⠾⣵⢧⡀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⣀⣞⣟⣶⠛⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢫⢿⣝⡧⣄⠀⠀⠀⠀
+⠀⠀⠀⣰⣻⡼⣾⣹⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡿⣞⣽⣳⢆⠀⠀⠀
+⠀⠀⣸⢷⣫⢷⢯⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠀⠀⠀⠀⠀⠀⠀⠀⢸⡿⣼⣫⢿⣅⠀⠀
+⠀⢸⣯⢯⡽⣞⣯⡇⠀⠀⠀⠀⠀⢀⣀⣠⣤⢦⣴⢶⣯⣛⣻⣞⣄⠀⠀⠀⠀⠀⠀⢸⡿⣵⢯⣟⡾⣆⠀
+⢀⡿⣞⣯⣽⣛⡶⣇⠀⠀⠀⠀⠀⠀⠈⢉⣾⢿⣽⣻⣞⣷⡻⠊⠛⠂⠀⠀⠀⠀⠀⣸⢿⣽⣻⣞⣿⣽⠀
+⢸⣿⡽⣞⣷⣯⢿⣽⡀⠀⠀⠀⠀⠀⢠⠿⢯⡿⣞⣷⣻⡼⡇⠀⠀⠀⠀⠀⠀⠀⢀⣿⣻⣞⣷⢿⡾⣽⡇
+⢸⣷⢿⣯⣿⣾⣻⣞⡷⡄⠀⠀⠀⠀⠀⣠⣾⢿⣽⣳⣏⣷⣻⣇⠀⠀⠀⠀⠀⣀⣿⢯⣷⢿⣿⣯⣟⣯⡇
+⢸⣿⣻⢻⣽⡾⣷⢯⡿⣷⣦⡀⠀⠀⣸⡿⣽⣻⡾⣗⣯⢾⡵⣯⢧⠀⠀⢀⣴⣻⣽⢿⣾⣻⣾⡟⣯⣟⡇
+⠘⣿⠇⣾⢯⣿⣽⣻⣽⣷⣻⣟⣶⣴⣿⣻⣽⢷⣟⡿⣞⣯⢿⣽⣻⣤⢾⣻⣾⡽⣯⡿⣞⣷⣯⡇⠸⣿⠃
+⠀⠻⠀⣿⣿⣳⣯⣟⣾⡷⣟⣾⣽⡏⢷⡿⣽⣻⡾⣿⡽⣾⣟⣾⡯⢻⣿⡽⣞⣿⣷⣿⣻⢷⣯⡧⠀⠟⠀
+⠀⠀⠀⢹⣷⣯⣷⡟⣿⣟⣯⢿⣾⠁⠘⣿⣯⣷⢿⣳⡿⣷⢯⡿⠁⢸⣷⢿⣻⢷⡏⢷⣿⣻⣷⡇⠀⠀⠀
+⠀⠀⠀⠘⣿⣾⣿⠁⣿⣻⡾⣿⣽⠀⠀⢹⣷⣯⡿⣯⢿⣽⢿⡇⠀⠘⣯⡿⣯⣿⣻⠈⣿⣟⡿⠁⠀⠀⠀
+⠀⠀⠀⠀⠈⢿⡯⠀⢹⣿⣽⣷⣿⡀⠀⠈⣿⣷⣿⣟⣯⡿⡿⠀⠀⢘⣿⣽⣷⣿⡇⠀⣽⡿⠃⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠈⠓⠀⠀⠻⣿⣿⣾⡇⠀⠀⢸⣿⣿⣯⣿⢿⡇⠀⠀⢸⣿⣿⣾⠏⠀⠀⠛⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⢿⣿⣿⠀⠀⠀⣿⣿⣿⣿⡿⠀⠀⠀⣿⣿⡷⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠛⠆⠀⠀⠸⣿⣿⣿⡃⠀⠀⠰⠛⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣿⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠸⣿⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+"""
 
 class Constants:
     DEFAULT_TIMEOUT = 10
@@ -372,55 +394,117 @@ class InterfaceManager:
     
     def _scan_interfaces(self):
         try:
-            for iface_name in netifaces.interfaces():
-                iface_info = netifaces.ifaddresses(iface_name)
-                
-                mac = None
-                if netifaces.AF_LINK in iface_info:
-                    mac = iface_info[netifaces.AF_LINK][0].get('addr')
-                
-                ipv4 = []
-                if netifaces.AF_INET in iface_info:
-                    for addr in iface_info[netifaces.AF_INET]:
-                        ipv4.append({
-                            'address': addr.get('addr'),
-                            'netmask': addr.get('netmask'),
-                            'broadcast': addr.get('broadcast')
-                        })
-                
-                ipv6 = []
-                if netifaces.AF_INET6 in iface_info:
-                    for addr in iface_info[netifaces.AF_INET6]:
-                        ipv6.append({
-                            'address': addr.get('addr'),
-                            'netmask': addr.get('netmask')
-                        })
-                
-                is_up = self._is_interface_up(iface_name)
-                is_loopback = iface_name == 'lo' or iface_name.startswith('lo')
-                is_virtual = self._is_virtual_interface(iface_name)
-                speed = self._get_interface_speed(iface_name)
-                mtu = self._get_interface_mtu(iface_name)
-                
-                self.interfaces[iface_name] = {
-                    'name': iface_name,
-                    'mac': mac,
-                    'ipv4': ipv4,
-                    'ipv6': ipv6,
-                    'is_up': is_up,
-                    'is_loopback': is_loopback,
-                    'is_virtual': is_virtual,
-                    'speed': speed,
-                    'mtu': mtu,
-                    'type': self._get_interface_type(iface_name, mac)
-                }
-            
-            if self.logger:
-                self.logger.debug(f"Found {len(self.interfaces)} network interfaces")
+            if platform.system() == 'Android':
+                self._scan_android_interfaces()
+            else:
+                self._scan_standard_interfaces()
         except Exception as e:
             if self.logger:
                 self.logger.debug(f"Interface scan error: {e}")
             self._fallback_interface_scan()
+    
+    def _scan_android_interfaces(self):
+        try:
+            result = subprocess.run(['ip', 'addr', 'show'], capture_output=True, text=True, timeout=5)
+            current_iface = None
+            for line in result.stdout.split('\n'):
+                if ': ' in line and 'LOOPBACK' not in line:
+                    parts = line.strip().split(': ')
+                    if len(parts) >= 2:
+                        current_iface = parts[1].split('@')[0].strip()
+                        if current_iface not in self.interfaces:
+                            self.interfaces[current_iface] = {
+                                'name': current_iface,
+                                'mac': None,
+                                'ipv4': [],
+                                'ipv6': [],
+                                'is_up': 'UP' in line,
+                                'is_loopback': False,
+                                'is_virtual': False,
+                                'speed': None,
+                                'mtu': None,
+                                'type': 'wireless' if 'wlan' in current_iface else 'ethernet'
+                            }
+                elif 'inet ' in line and current_iface:
+                    parts = line.strip().split()
+                    if len(parts) >= 2:
+                        ip = parts[1].split('/')[0]
+                        if ip and not ip.startswith('127.'):
+                            if current_iface in self.interfaces:
+                                self.interfaces[current_iface]['ipv4'].append({
+                                    'address': ip,
+                                    'netmask': None,
+                                    'broadcast': None
+                                })
+            
+            for iface_name in self.interfaces:
+                try:
+                    with open(f'/sys/class/net/{iface_name}/address', 'r') as f:
+                        mac = f.read().strip()
+                        self.interfaces[iface_name]['mac'] = mac
+                except:
+                    pass
+                
+                try:
+                    with open(f'/sys/class/net/{iface_name}/mtu', 'r') as f:
+                        mtu = f.read().strip()
+                        self.interfaces[iface_name]['mtu'] = int(mtu) if mtu.isdigit() else None
+                except:
+                    pass
+            
+            if self.logger:
+                self.logger.debug(f"Found {len(self.interfaces)} Android interfaces")
+        except Exception as e:
+            if self.logger:
+                self.logger.debug(f"Android interface scan error: {e}")
+            self._fallback_interface_scan()
+    
+    def _scan_standard_interfaces(self):
+        for iface_name in netifaces.interfaces():
+            iface_info = netifaces.ifaddresses(iface_name)
+            
+            mac = None
+            if netifaces.AF_LINK in iface_info:
+                mac = iface_info[netifaces.AF_LINK][0].get('addr')
+            
+            ipv4 = []
+            if netifaces.AF_INET in iface_info:
+                for addr in iface_info[netifaces.AF_INET]:
+                    ipv4.append({
+                        'address': addr.get('addr'),
+                        'netmask': addr.get('netmask'),
+                        'broadcast': addr.get('broadcast')
+                    })
+            
+            ipv6 = []
+            if netifaces.AF_INET6 in iface_info:
+                for addr in iface_info[netifaces.AF_INET6]:
+                    ipv6.append({
+                        'address': addr.get('addr'),
+                        'netmask': addr.get('netmask')
+                    })
+            
+            is_up = self._is_interface_up(iface_name)
+            is_loopback = iface_name == 'lo' or iface_name.startswith('lo')
+            is_virtual = self._is_virtual_interface(iface_name)
+            speed = self._get_interface_speed(iface_name)
+            mtu = self._get_interface_mtu(iface_name)
+            
+            self.interfaces[iface_name] = {
+                'name': iface_name,
+                'mac': mac,
+                'ipv4': ipv4,
+                'ipv6': ipv6,
+                'is_up': is_up,
+                'is_loopback': is_loopback,
+                'is_virtual': is_virtual,
+                'speed': speed,
+                'mtu': mtu,
+                'type': self._get_interface_type(iface_name, mac)
+            }
+        
+        if self.logger:
+            self.logger.debug(f"Found {len(self.interfaces)} network interfaces")
     
     def _is_interface_up(self, iface_name: str) -> bool:
         try:
@@ -515,7 +599,7 @@ class InterfaceManager:
             import fcntl
             import struct
             
-            if platform.system() != 'Windows':
+            if platform.system() != 'Windows' and platform.system() != 'Android':
                 SIOCGIFCONF = 0x8912
                 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 buf = 4096
@@ -543,6 +627,8 @@ class InterfaceManager:
                             'type': 'unknown'
                         }
                 sock.close()
+            else:
+                self._scan_android_interfaces()
         except:
             try:
                 hostname = socket.gethostname()
@@ -597,6 +683,11 @@ class InterfaceManager:
                 for addr in iface_info['ipv4']:
                     if addr['address'] and not addr['address'].startswith('127.'):
                         return iface_name, addr['address']
+        
+        if platform.system() == 'Android':
+            for iface_name, iface_info in self.interfaces.items():
+                if iface_info.get('ipv4') and iface_info['ipv4'][0].get('address'):
+                    return iface_name, iface_info['ipv4'][0]['address']
         
         return 'default', '127.0.0.1'
     
@@ -655,6 +746,16 @@ class InterfaceManager:
                             mac = parts[1]
                             status = ' '.join(parts[2:])
                             if 'dynamic' in status.lower() or 'static' in status.lower():
+                                arp_cache[ip] = mac
+                elif platform.system() == 'Android':
+                    result = subprocess.run(['ip', 'neigh', 'show'], capture_output=True, text=True, timeout=timeout)
+                    for line in result.stdout.split('\n'):
+                        parts = line.strip().split()
+                        if len(parts) >= 3 and '.' in parts[0] and ':' in parts[2]:
+                            ip = parts[0]
+                            mac = parts[2]
+                            status = parts[-1] if parts[-1] in ['REACHABLE', 'STALE', 'PERMANENT'] else None
+                            if status in ['REACHABLE', 'STALE', 'PERMANENT']:
                                 arp_cache[ip] = mac
                 else:
                     if self.sudo_manager and self.sudo_manager.has_sudo:
@@ -750,17 +851,41 @@ def get_local_ip() -> str:
         s.close()
         return ip
     except:
-        return '127.0.0.1'
+        try:
+            if platform.system() == 'Android':
+                result = subprocess.run(['ip', 'addr', 'show'], capture_output=True, text=True, timeout=2)
+                for line in result.stdout.split('\n'):
+                    if 'inet ' in line and 'wlan' in line:
+                        parts = line.strip().split()
+                        if len(parts) >= 2:
+                            ip = parts[1].split('/')[0]
+                            if ip and not ip.startswith('127.'):
+                                return ip
+            return '127.0.0.1'
+        except:
+            return '127.0.0.1'
 
 def get_mac_from_ip(ip: str) -> Optional[str]:
     try:
-        packet = scapy.ARP(pdst=ip)
-        result = scapy.srp(packet, timeout=2, verbose=False)[0]
-        if result:
-            return result[0][1].hwsrc
+        if platform.system() == 'Android':
+            result = subprocess.run(['ip', 'neigh', 'show', ip], capture_output=True, text=True, timeout=2)
+            for line in result.stdout.split('\n'):
+                if ':' in line:
+                    parts = line.strip().split()
+                    if len(parts) >= 3:
+                        return parts[2]
+            return None
+        else:
+            result = subprocess.run(['arp', '-a', ip], capture_output=True, text=True, timeout=2)
+            for line in result.stdout.split('\n'):
+                if ip in line and ':' in line:
+                    parts = line.strip().split()
+                    for part in parts:
+                        if ':' in part and len(part) == 17:
+                            return part
+            return None
     except:
-        pass
-    return None
+        return None
 
 def generate_secure_password(length: int = 16) -> str:
     chars = string.ascii_letters + string.digits + "!@#$%^&*()_+-="
@@ -1004,30 +1129,30 @@ class Logger:
     
     def debug(self, msg: str):
         if self.verbose:
-            self._log('DEBUG', f"[*] {msg}")
+            self._log('DEBUG', f"{Fore.CYAN}[*] {msg}{Style.RESET_ALL}")
     
     def info(self, msg: str):
-        self._log('INFO', f"[+] {msg}")
+        self._log('INFO', f"{Fore.BLUE}[+] {msg}{Style.RESET_ALL}")
     
     def success(self, msg: str):
-        self._log('INFO', f"[✓] {msg}")
+        self._log('INFO', f"{Fore.GREEN}[✓] {msg}{Style.RESET_ALL}")
     
     def warning(self, msg: str):
-        self._log('WARNING', f"[!] {msg}")
+        self._log('WARNING', f"{Fore.YELLOW}[!] {msg}{Style.RESET_ALL}")
     
     def error(self, msg: str):
-        self._log('ERROR', f"[-] {msg}")
+        self._log('ERROR', f"{Fore.RED}[-] {msg}{Style.RESET_ALL}")
     
     def critical(self, msg: str):
-        self._log('CRITICAL', f"[‼] {msg}")
+        self._log('CRITICAL', f"{Fore.RED}[‼] {msg}{Style.RESET_ALL}")
     
     def highlight(self, msg: str):
-        self._log('INFO', f"[★] {msg}")
+        self._log('INFO', f"{Fore.MAGENTA}[★] {msg}{Style.RESET_ALL}")
     
     def section(self, msg: str):
-        self._log('INFO', f"\n{'='*70}")
-        self._log('INFO', f"  {msg}")
-        self._log('INFO', f"{'='*70}")
+        self._log('INFO', f"\n{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
+        self._log('INFO', f"{Fore.CYAN}  {msg}{Style.RESET_ALL}")
+        self._log('INFO', f"{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
     
     def progress(self, current: int, total: int, msg: str = "", 
                  bar_length: int = 30):
@@ -1710,81 +1835,58 @@ class DiscoveryEngine:
         return devices
     
     def passive_discovery(self, timeout: int = 30) -> Dict[str, HikDevice]:
-        self.logger.info(f"Passive ARP sniffing for {timeout}s...")
-        
-        if not self.sudo_manager.has_sudo:
-            self.logger.warning("ARP sniffing requires elevated privileges - using fallback methods")
-            return self._passive_discovery_fallback(timeout)
+        self.logger.info(f"Passive ARP discovery for {timeout}s...")
+        self.logger.debug("Using ARP cache-based discovery (compatible with all platforms)")
         
         found_ips = set()
-        target_macs = set(self.known_ouis.keys())
-        
-        def packet_handler(pkt):
-            if self._stop_scan:
-                return
-            try:
-                if pkt.haslayer(scapy.ARP) and pkt[scapy.ARP].op == 2:
-                    hw_src = pkt[scapy.ARP].hwsrc.lower()
-                    for oui in target_macs:
-                        if hw_src.startswith(oui):
-                            ip_src = pkt[scapy.ARP].psrc
-                            if ip_src not in found_ips:
-                                device = HikDevice(
-                                    ip_address=ip_src,
-                                    mac_address=hw_src,
-                                    manufacturer=self.known_ouis.get(oui, 'Hikvision'),
-                                    interface=self.interface
-                                )
-                                self.discovered_devices[ip_src] = device
-                                found_ips.add(ip_src)
-                                self.logger.debug(f"Found device: {ip_src} ({hw_src})")
-                            break
-            except Exception as e:
-                self.logger.debug(f"Packet handler error: {e}")
         
         try:
-            if self.interface:
-                scapy.sniff(
-                    iface=self.interface,
-                    filter="arp",
-                    prn=packet_handler,
-                    timeout=timeout,
-                    store=False
-                )
-            else:
-                scapy.sniff(
-                    filter="arp",
-                    prn=packet_handler,
-                    timeout=timeout,
-                    store=False
-                )
+            peers = self.interface_manager.get_interface_peers(self.interface, timeout)
+            
+            for peer in peers:
+                ip = peer['ip']
+                mac = peer['mac']
+                if ip not in found_ips and ip != self.local_ip:
+                    if not ip.startswith('127.'):
+                        device = HikDevice(
+                            ip_address=ip,
+                            mac_address=mac,
+                            interface=self.interface
+                        )
+                        
+                        for oui, manufacturer in self.known_ouis.items():
+                            if mac and mac.lower().startswith(oui):
+                                device.manufacturer = manufacturer
+                                break
+                        
+                        self.discovered_devices[ip] = device
+                        found_ips.add(ip)
+                        self.logger.debug(f"Found device: {ip} ({mac})")
+                        
         except Exception as e:
-            self.logger.error(f"Passive discovery failed: {e}")
-            self._passive_discovery_fallback(timeout)
+            self.logger.error(f"ARP discovery failed: {e}")
+            self.logger.info("Attempting ping sweep fallback...")
+            self._fallback_ping_discovery()
         
         return self.discovered_devices
     
-    def _passive_discovery_fallback(self, timeout: int = 30) -> Dict[str, HikDevice]:
-        self.logger.info("Using ARP cache fallback...")
+    def _fallback_ping_discovery(self):
         try:
-            peers = self.interface_manager.get_interface_peers(self.interface, timeout)
-            for peer in peers:
-                if peer['ip'] not in self.discovered_devices:
-                    device = HikDevice(
-                        ip_address=peer['ip'],
-                        mac_address=peer['mac'],
-                        interface=self.interface
-                    )
-                    for oui, manufacturer in self.known_ouis.items():
-                        if peer['mac'] and peer['mac'].lower().startswith(oui):
-                            device.manufacturer = manufacturer
-                            break
-                    self.discovered_devices[peer['ip']] = device
-                    self.logger.debug(f"Found device from ARP cache: {peer['ip']}")
+            self.logger.info("Using ping sweep for discovery...")
+            for i in range(1, 255):
+                if self._stop_scan:
+                    break
+                ip = f"192.168.0.{i}"
+                if ip != self.local_ip:
+                    if self._ping_host(ip):
+                        device = HikDevice(
+                            ip_address=ip,
+                            interface=self.interface
+                        )
+                        self.discovered_devices[ip] = device
+                        self.logger.debug(f"Found device via ping: {ip}")
         except Exception as e:
-            self.logger.debug(f"Fallback discovery error: {e}")
-        
-        return self.discovered_devices
+            self.logger.debug(f"Fallback ping discovery error: {e}")
     
     @safe_operation()
     def _send_multicast_probe(self):
@@ -1999,19 +2101,23 @@ class DiscoveryEngine:
             self.logger.error(f"Subnet scan error: {e}")
     
     def _ping_host(self, ip: str) -> bool:
-        if self.sudo_manager.has_sudo:
-            try:
-                packet = scapy.IP(dst=ip)/scapy.ICMP()
-                reply = scapy.sr1(packet, timeout=2, verbose=False)
-                if reply:
-                    return True
-            except:
-                pass
-        
         try:
-            if os.name == 'nt':
+            if platform.system() == 'Windows':
                 result = subprocess.run(
                     ['ping', '-n', '1', '-w', '2000', ip],
+                    capture_output=True,
+                    timeout=3
+                )
+            elif platform.system() == 'Android':
+                result = subprocess.run(
+                    ['ping', '-c', '1', '-W', '2', ip],
+                    capture_output=True,
+                    timeout=3
+                )
+                if result.returncode == 0:
+                    return True
+                result = subprocess.run(
+                    ['ping', '-c', '1', '-w', '2', ip],
                     capture_output=True,
                     timeout=3
                 )
@@ -2035,6 +2141,11 @@ class DiscoveryEngine:
                     device.hostname = hostname
                 except:
                     pass
+            
+            if not device.mac_address:
+                mac = get_mac_from_ip(ip)
+                if mac:
+                    device.mac_address = mac
             
             if 80 in device.open_ports or 443 in device.open_ports:
                 self._get_web_info(device)
@@ -3408,36 +3519,23 @@ def parse_arguments():
     return parser.parse_args()
 
 def display_banner():
-    banner = f"""
-{Fore.CYAN}                                                         
-                         +?+                               
-                      .I###?                              
-                    .7Z77$?                               
-                  .7#?  ..                                
-                .7#?   ..                                 
-              .7#?    ..                          
-            .7#?     ..                                  
-          .7#?      ..          {Fore.YELLOW}╔════════════════════════════════════════╗
-        .7#?       ..          {Fore.YELLOW}║                                        ║
-      .7#?        ..           {Fore.YELLOW}║   {Fore.RED}██████╗ █████╗ ██╗   ██╗███████╗███╗   ██╗{Fore.YELLOW}║
-    .7#?         ..            {Fore.YELLOW}║   {Fore.RED}██╔══██╗██╔══██╗██║   ██║██╔════╝████╗  ██║{Fore.YELLOW}║
-  .7#?          ..             {Fore.YELLOW}║   {Fore.RED}██████╔╝███████║██║   ██║█████╗  ██╔██╗ ██║{Fore.YELLOW}║
-.7#?           ..              {Fore.YELLOW}║   {Fore.RED}██╔══██╗██╔══██║╚██╗ ██╔╝██╔══╝  ██║╚██╗██║{Fore.YELLOW}║
-7#?            ..              {Fore.YELLOW}║   {Fore.RED}██║  ██║██║  ██║ ╚████╔╝ ███████╗██║ ╚████║{Fore.YELLOW}║
-#?             ..              {Fore.YELLOW}║   {Fore.RED}╚═╝  ╚═╝╚═╝  ╚═╝  ╚═══╝  ╚══════╝╚═╝  ╚═══╝{Fore.YELLOW}║
-?              ..              {Fore.YELLOW}║                                        ║
-              ..               {Fore.YELLOW}║   {Fore.GREEN}HIKRAVEN - Professional Edition{Fore.YELLOW}            ║
-             ..                {Fore.YELLOW}║   {Fore.GREEN}Advanced Hikvision Security Assessment Framework{Fore.YELLOW}   ║
-            ..                 {Fore.YELLOW}╚════════════════════════════════════════╝
-           ..                  {Fore.CYAN}┌────────────────────────────────────────────────┐
-          ..                   {Fore.CYAN}│ {Fore.WHITE}Author: SYLHETYHACKVENGER (THE-ERROR808)    {Fore.CYAN}│
-         ..                    {Fore.CYAN}│ {Fore.WHITE}Tool: HIKRAVEN - Hikvision Security Scanner {Fore.CYAN}│
-        ..                     {Fore.CYAN}│ {Fore.WHITE}Info: Advanced vulnerability assessment      {Fore.CYAN}│
-       ..                      {Fore.CYAN}│ {Fore.YELLOW}⚠️  For authorized security testing only!  {Fore.CYAN}│
-      ..                       {Fore.CYAN}└────────────────────────────────────────────────┘
-     ..                        {Fore.WHITE}                                                         
-{Style.RESET_ALL}"""
-    console.print(banner)
+    console.print(f"{Fore.LIGHTRED_EX}{BANNER}{Style.RESET_ALL}")
+    console.print()
+    console.print(f"{Fore.GREEN}╔═══════════════════════════════════════════════════════════════╗{Style.RESET_ALL}")
+    console.print(f"{Fore.GREEN}║{Fore.LIGHTRED_EX}   ██╗  ██╗██╗██╗  ██╗██████╗  █████╗ ██╗   ██╗███████╗███╗   ██╗{Fore.GREEN}║{Style.RESET_ALL}")
+    console.print(f"{Fore.GREEN}║{Fore.LIGHTRED_EX}   ██║  ██║██║██║  ██║██╔══██╗██╔══██╗██║   ██║██╔════╝████╗  ██║{Fore.GREEN}║{Style.RESET_ALL}")
+    console.print(f"{Fore.GREEN}║{Fore.LIGHTRED_EX}   ███████║██║███████║██████╔╝███████║██║   ██║█████╗  ██╔██╗ ██║{Fore.GREEN}║{Style.RESET_ALL}")
+    console.print(f"{Fore.GREEN}║{Fore.LIGHTRED_EX}   ██╔══██║██║██╔══██║██╔══██╗██╔══██║╚██╗ ██╔╝██╔══╝  ██║╚██╗██║{Fore.GREEN}║{Style.RESET_ALL}")
+    console.print(f"{Fore.GREEN}║{Fore.LIGHTRED_EX}   ██║  ██║██║██║  ██║██║  ██║██║  ██║ ╚████╔╝ ███████╗██║ ╚████║{Fore.GREEN}║{Style.RESET_ALL}")
+    console.print(f"{Fore.GREEN}║{Fore.LIGHTRED_EX}   ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝  ╚═══╝  ╚══════╝╚═╝  ╚═══╝{Fore.GREEN}║{Style.RESET_ALL}")
+    console.print(f"{Fore.GREEN}║{Fore.LIGHTGREEN_EX}   HIKRAVEN - Professional Edition{Fore.GREEN}                             ║{Style.RESET_ALL}")
+    console.print(f"{Fore.GREEN}║{Fore.LIGHTGREEN_EX}   Advanced Hikvision Security Assessment Framework{Fore.GREEN}            ║{Style.RESET_ALL}")
+    console.print(f"{Fore.GREEN}╠═══════════════════════════════════════════════════════════════╣{Style.RESET_ALL}")
+    console.print(f"{Fore.GREEN}║{Fore.CYAN}   Author: SYLHETYHACKVENGER (THE-ERROR808){Fore.GREEN}                         ║{Style.RESET_ALL}")
+    console.print(f"{Fore.GREEN}║{Fore.CYAN}   Tool: HIKRAVEN - Hikvision Security Scanner{Fore.GREEN}                    ║{Style.RESET_ALL}")
+    console.print(f"{Fore.GREEN}║{Fore.CYAN}   Info: Advanced vulnerability assessment{Fore.GREEN}                       ║{Style.RESET_ALL}")
+    console.print(f"{Fore.GREEN}║{Fore.YELLOW}   ⚠️  For authorized security testing only!{Fore.GREEN}                      ║{Style.RESET_ALL}")
+    console.print(f"{Fore.GREEN}╚═══════════════════════════════════════════════════════════════╝{Style.RESET_ALL}")
     console.print()
 
 def list_interfaces():
